@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/hashicorp/go-immutable-radix"
+	"github.com/outofforest/iradix"
 )
 
 // MemDB is an in-memory database providing Atomicity, Consistency, and
@@ -27,9 +27,8 @@ import (
 // even after they've been deleted from MemDB since there may still be older
 // snapshots of the DB being read from other goroutines.
 type MemDB struct {
-	schema  *DBSchema
-	root    unsafe.Pointer // *iradix.Tree underneath
-	primary bool
+	schema *DBSchema
+	root   unsafe.Pointer // *iradix.Tree underneath
 
 	// There can only be a single writer at once
 	writer sync.Mutex
@@ -44,14 +43,10 @@ func NewMemDB(schema *DBSchema) (*MemDB, error) {
 
 	// Create the MemDB
 	db := &MemDB{
-		schema:  schema,
-		root:    unsafe.Pointer(iradix.New()),
-		primary: true,
+		schema: schema,
+		root:   unsafe.Pointer(iradix.New()),
 	}
-	if err := db.initialize(); err != nil {
-		return nil, err
-	}
-
+	db.initialize()
 	return db, nil
 }
 
@@ -63,10 +58,9 @@ func (db *MemDB) DBSchema() *DBSchema {
 	return db.schema
 }
 
-// getRoot is used to do an atomic load of the root pointer
-func (db *MemDB) getRoot() *iradix.Tree {
-	root := (*iradix.Tree)(atomic.LoadPointer(&db.root))
-	return root
+// getRoot is used to do an atomic load of the root pointer.
+func (db *MemDB) getRoot() *iradix.Node {
+	return (*iradix.Node)(atomic.LoadPointer(&db.root))
 }
 
 // Txn is used to start a new transaction in either read or write mode.
@@ -78,7 +72,7 @@ func (db *MemDB) Txn(write bool) *Txn {
 	txn := &Txn{
 		db:      db,
 		write:   write,
-		rootTxn: db.getRoot().Txn(),
+		rootTxn: iradix.NewTxn(db.getRoot()),
 	}
 	return txn
 }
@@ -91,29 +85,27 @@ func (db *MemDB) Txn(write bool) *Txn {
 // to modify any inserted values in either DB.
 func (db *MemDB) Snapshot() *MemDB {
 	clone := &MemDB{
-		schema:  db.schema,
-		root:    unsafe.Pointer(db.getRoot()),
-		primary: false,
+		schema: db.schema,
+		root:   unsafe.Pointer(db.getRoot()),
 	}
 	return clone
 }
 
 // initialize is used to setup the DB for use after creation. This should
 // be called only once after allocating a MemDB.
-func (db *MemDB) initialize() error {
-	root := db.getRoot()
+func (db *MemDB) initialize() {
+	txn := iradix.NewTxn(db.getRoot())
 	for tName, tableSchema := range db.schema.Tables {
 		for iName := range tableSchema.Indexes {
 			index := iradix.New()
 			path := indexPath(tName, iName)
-			root, _, _ = root.Insert(path, index)
+			txn.Insert(path, index)
 		}
 	}
-	db.root = unsafe.Pointer(root)
-	return nil
+	db.root = unsafe.Pointer(txn.Commit())
 }
 
-// indexPath returns the path from the root to the given table index
+// indexPath returns the path from the root to the given table index.
 func indexPath(table, index string) []byte {
 	return []byte(table + "." + index)
 }

@@ -3,7 +3,9 @@
 
 package memdb
 
-import "fmt"
+import (
+	"github.com/pkg/errors"
+)
 
 // DBSchema is the schema to use for the full database with a MemDB instance.
 //
@@ -18,20 +20,20 @@ type DBSchema struct {
 // Validate validates the schema.
 func (s *DBSchema) Validate() error {
 	if s == nil {
-		return fmt.Errorf("schema is nil")
+		return errors.Errorf("schema is nil")
 	}
 
 	if len(s.Tables) == 0 {
-		return fmt.Errorf("schema has no tables defined")
+		return errors.Errorf("schema has no tables defined")
 	}
 
 	for name, table := range s.Tables {
 		if name != table.Name {
-			return fmt.Errorf("table name mis-match for '%s'", name)
+			return errors.Errorf("table name mis-match for '%s'", name)
 		}
 
 		if err := table.Validate(); err != nil {
-			return fmt.Errorf("table %q: %s", name, err)
+			return errors.Errorf("table %q: %s", name, err)
 		}
 	}
 
@@ -49,39 +51,50 @@ type TableSchema struct {
 	Indexes map[string]*IndexSchema
 }
 
-// Validate is used to validate the table schema
+// Validate is used to validate the table schema.
 func (s *TableSchema) Validate() error {
 	if s.Name == "" {
-		return fmt.Errorf("missing table name")
+		return errors.Errorf("missing table name")
 	}
 
 	if len(s.Indexes) == 0 {
-		return fmt.Errorf("missing table indexes for '%s'", s.Name)
+		return errors.Errorf("missing table indexes for '%s'", s.Name)
 	}
 
 	if _, ok := s.Indexes["id"]; !ok {
-		return fmt.Errorf("must have id index")
+		return errors.Errorf("must have id index")
 	}
 
 	if !s.Indexes["id"].Unique {
-		return fmt.Errorf("id index must be unique")
-	}
-
-	if _, ok := s.Indexes["id"].Indexer.(SingleIndexer); !ok {
-		return fmt.Errorf("id index must be a SingleIndexer")
+		return errors.Errorf("id index must be unique")
 	}
 
 	for name, index := range s.Indexes {
 		if name != index.Name {
-			return fmt.Errorf("index name mis-match for '%s'", name)
+			return errors.Errorf("index name mis-match for '%s'", name)
 		}
 
 		if err := index.Validate(); err != nil {
-			return fmt.Errorf("index %q: %s", name, err)
+			return errors.Errorf("index %q: %s", name, err)
 		}
 	}
 
 	return nil
+}
+
+// Indexer is an interface used for defining indexes.
+type Indexer interface {
+	// SizeFromObject returns byte size of the index key based on the object.
+	SizeFromObject(o any) uint64
+
+	// SizeFromArgs returns byte size of the index key based on the args.
+	SizeFromArgs(args ...any) uint64
+
+	// FromArgs is called to build the exact index key from a list of arguments.
+	FromArgs(b []byte, args ...any) uint64
+
+	// FromObject extracts the index value from an object.
+	FromObject(b []byte, o any) uint64
 }
 
 // IndexSchema is the schema for an index. An index defines how a table is
@@ -91,27 +104,17 @@ type IndexSchema struct {
 	// This must match the key in the map of Indexes for a TableSchema.
 	Name string
 
-	// AllowMissing if true ignores this index if it doesn't produce a
-	// value. For example, an index that extracts a field that doesn't
-	// exist from a structure.
-	AllowMissing bool
-
 	Unique  bool
 	Indexer Indexer
 }
 
+// Validate validates schema.
 func (s *IndexSchema) Validate() error {
 	if s.Name == "" {
-		return fmt.Errorf("missing index name")
+		return errors.Errorf("missing index name")
 	}
 	if s.Indexer == nil {
-		return fmt.Errorf("missing index function for '%s'", s.Name)
-	}
-	switch s.Indexer.(type) {
-	case SingleIndexer:
-	case MultiIndexer:
-	default:
-		return fmt.Errorf("indexer for '%s' must be a SingleIndexer or MultiIndexer", s.Name)
+		return errors.Errorf("missing index function for '%s'", s.Name)
 	}
 	return nil
 }
