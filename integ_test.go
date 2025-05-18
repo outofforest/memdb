@@ -30,21 +30,21 @@ func TestTxn_Isolation(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn1.Insert("main", toReflectValue(obj))
+	err := txn1.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", toReflectValue(obj2))
+	err = txn1.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", toReflectValue(obj3))
+	err = txn1.Insert(0, toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// Results should show up in this transaction
-	raw, err := txn1.First("main", "id")
+	raw, err := txn1.First(0, id.IndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn2 := db.Txn(false)
 
 	// Nothing should show up in this transaction
-	raw, err = txn2.First("main", "id")
+	raw, err = txn2.First(0, id.IndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn1.Commit()
 
 	// Nothing should show up in this transaction
-	raw, err = txn2.First("main", "id")
+	raw, err = txn2.First(0, id.IndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn3 := db.Txn(false)
 
 	// Results should show up in this transaction
-	raw, err = txn3.First("main", "id")
+	raw, err = txn3.First(0, id.IndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -107,15 +107,15 @@ func TestTxn_Abort(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn1.Insert("main", toReflectValue(obj))
+	err := txn1.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", toReflectValue(obj2))
+	err = txn1.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", toReflectValue(obj3))
+	err = txn1.Insert(0, toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestTxn_Abort(t *testing.T) {
 	txn2 := db.Txn(false)
 
 	// Nothing should show up in this transaction
-	raw, err := txn2.First("main", "id")
+	raw, err := txn2.First(0, id.IndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -143,19 +143,19 @@ func TestComplexDB(t *testing.T) {
 	txn := db.Txn(false) // read only
 
 	// Get using a full name
-	raw, err := txn.First("people", "name", "Armon", "Dadgar")
+	raw, err := txn.First(peopleTableID, personNameIndex.ID(), "Armon", "Dadgar")
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
-	raw, err = txn.First("people", "age", uint8(27))
+	raw, err = txn.First(peopleTableID, personAgeIndex.ID(), uint8(27))
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
-	raw, err = txn.First("people", "negative_age", int8(-26))
+	raw, err = txn.First(peopleTableID, personNegativeAgeIndex.ID(), int8(-26))
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
@@ -167,7 +167,7 @@ func TestComplexDB(t *testing.T) {
 	}
 
 	// Where in the world is mitchell hashimoto?
-	raw, err = txn.First("people", "name", "Mitchell")
+	raw, err = txn.First(peopleTableID, personNameIndex.ID(), "Mitchell")
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
@@ -241,13 +241,13 @@ func testPopulateData(t *testing.T, db *memdb.MemDB) {
 	visit2 := testVisit(person2.ID, place2.ID)
 
 	// Insert it all
-	noErr(t, txn.Insert("people", toReflectValue(person1)))
-	noErr(t, txn.Insert("people", toReflectValue(person2)))
-	noErr(t, txn.Insert("places", toReflectValue(place1)))
-	noErr(t, txn.Insert("places", toReflectValue(place2)))
-	noErr(t, txn.Insert("places", toReflectValue(place3)))
-	noErr(t, txn.Insert("visits", toReflectValue(visit1)))
-	noErr(t, txn.Insert("visits", toReflectValue(visit2)))
+	noErr(t, txn.Insert(peopleTableID, toReflectValue(person1)))
+	noErr(t, txn.Insert(peopleTableID, toReflectValue(person2)))
+	noErr(t, txn.Insert(placesTableID, toReflectValue(place1)))
+	noErr(t, txn.Insert(placesTableID, toReflectValue(place2)))
+	noErr(t, txn.Insert(placesTableID, toReflectValue(place3)))
+	noErr(t, txn.Insert(visitsTableID, toReflectValue(visit1)))
+	noErr(t, txn.Insert(visitsTableID, toReflectValue(visit2)))
 
 	// Commit
 	txn.Commit()
@@ -279,57 +279,36 @@ type TestVisit struct {
 	Place  memdb.ID
 }
 
-func testComplexSchema() *memdb.DBSchema {
-	var person TestPerson
-	personNameIndex := indices.NewMultiIndex(
-		indices.NewFieldIndex("first", &person, &person.First),
-		indices.NewFieldIndex("last", &person, &person.Last),
+const (
+	peopleTableID uint64 = iota
+	placesTableID
+	visitsTableID
+)
+
+var (
+	person          TestPerson
+	personNameIndex = indices.NewMultiIndex(
+		indices.NewFieldIndex(&person, &person.First),
+		indices.NewFieldIndex(&person, &person.Last),
 	)
-	personNameSchema := personNameIndex.Schema()
-	personNameSchema.Name = "name"
-	personAgeIndex := indices.NewFieldIndex("age", &person, &person.Age)
-	personNegativeAgeIndex := indices.NewFieldIndex("negative_age", &person, &person.NegativeAge)
+	personAgeIndex         = indices.NewFieldIndex(&person, &person.Age)
+	personNegativeAgeIndex = indices.NewFieldIndex(&person, &person.NegativeAge)
 
-	var place TestPlace
-	placeNameIndex := indices.NewFieldIndex("name", &place, &place.Name)
+	place          TestPlace
+	placeNameIndex = indices.NewFieldIndex(&place, &place.Name)
+)
 
-	return &memdb.DBSchema{
-		Tables: map[string]*memdb.TableSchema{
-			"people": {
-				Name: "people",
-				Indexes: map[string]*memdb.IndexSchema{
-					"id": {
-						Name:    "id",
-						Unique:  true,
-						Indexer: id.Indexer{},
-					},
-					personNameSchema.Name:         personNameSchema,
-					personAgeIndex.Name():         personAgeIndex.Schema(),
-					personNegativeAgeIndex.Name(): personNegativeAgeIndex.Schema(),
-				},
-			},
-			"places": {
-				Name: "places",
-				Indexes: map[string]*memdb.IndexSchema{
-					"id": {
-						Name:    "id",
-						Unique:  true,
-						Indexer: id.Indexer{},
-					},
-					placeNameIndex.Name(): placeNameIndex.Schema(),
-				},
-			},
-			"visits": {
-				Name: "visits",
-				Indexes: map[string]*memdb.IndexSchema{
-					"id": {
-						Name:    "id",
-						Unique:  true,
-						Indexer: id.Indexer{},
-					},
-				},
-			},
+func testComplexSchema() [][]memdb.Index {
+	return [][]memdb.Index{
+		{
+			personNameIndex,
+			personAgeIndex,
+			personNegativeAgeIndex,
 		},
+		{
+			placeNameIndex,
+		},
+		{},
 	}
 }
 

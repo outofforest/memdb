@@ -10,7 +10,6 @@ import (
 
 	"github.com/outofforest/memdb"
 	"github.com/outofforest/memdb/id"
-	"github.com/outofforest/memdb/indices"
 )
 
 func TestTxn_Read_AbortCommit(t *testing.T) {
@@ -45,12 +44,12 @@ func TestTxn_Insert_First(t *testing.T) {
 	txn := db.Txn(true)
 
 	obj := testObj()
-	err := txn.Insert("main", toReflectValue(obj))
+	err := txn.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	raw, err := txn.First("main", "id", obj.ID)
+	raw, err := txn.First(0, id.IndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -68,12 +67,12 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 		ID:  memdb.ID{1},
 		Foo: "abc",
 	}
-	err := txn.Insert("main", toReflectValue(obj))
+	err := txn.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	raw, err := txn.First("main", "id", obj.ID)
+	raw, err := txn.First(0, id.IndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -87,12 +86,12 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 		ID:  memdb.ID{1},
 		Foo: "xyz",
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	raw, err = txn.First("main", "id", obj.ID)
+	raw, err = txn.First(0, id.IndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -110,12 +109,12 @@ func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
 		ID:  memdb.ID{1},
 		Foo: "abc",
 	}
-	err := txn.Insert("main", toReflectValue(obj))
+	err := txn.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	raw, err := txn.First("main", "foo", obj.Foo)
+	raw, err := txn.First(0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -129,12 +128,12 @@ func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
 		ID:  memdb.ID{1},
 		Foo: "xyz",
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	raw, err = txn.First("main", "foo", obj2.Foo)
+	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -144,7 +143,7 @@ func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
 	}
 
 	// Lookup of the old value should fail
-	raw, err = txn.First("main", "foo", obj.Foo)
+	raw, err = txn.First(0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -171,21 +170,21 @@ func TestTxn_First_NonUnique_Multiple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn.Insert("main", toReflectValue(obj))
+	err := txn.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj3))
+	err = txn.Insert(0, toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// The first object has a unique secondary value
-	raw, err := txn.First("main", "foo", obj.Foo)
+	raw, err := txn.First(0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -195,7 +194,7 @@ func TestTxn_First_NonUnique_Multiple(t *testing.T) {
 
 	// Second and third object share secondary value,
 	// but the primary ID of obj2 should be first
-	raw, err = txn.First("main", "foo", obj2.Foo)
+	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -221,21 +220,21 @@ func TestTxn_Last_NonUnique_Multiple(t *testing.T) {
 		Foo: "abc",
 	}
 
-	err := txn.Insert("main", toReflectValue(obj))
+	err := txn.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj3))
+	err = txn.Insert(0, toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// The last object has a unique secondary value
-	raw, err := txn.Last("main", "foo", obj.Foo)
+	raw, err := txn.Last(0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -245,7 +244,7 @@ func TestTxn_Last_NonUnique_Multiple(t *testing.T) {
 
 	// Second and third object share secondary value,
 	// but the primary ID of obj3 should be last
-	raw, err = txn.Last("main", "foo", obj3.Foo)
+	raw, err = txn.Last(0, indexFoo.ID(), obj3.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -267,18 +266,18 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn.Insert("main", toReflectValue(obj1))
+	err := txn.Insert(0, toReflectValue(obj1))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// Check the shared secondary value,
 	// but the primary ID of obj2 should be first
-	raw, err := txn.First("main", "foo", obj2.Foo)
+	raw, err := txn.First(0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -291,19 +290,19 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	txn = db.Txn(true)
 
 	// Delete obj1
-	err = txn.Delete("main", toReflectValue(obj1))
+	err = txn.Delete(0, toReflectValue(obj1))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// Delete obj1 again and expect ErrNotFound
-	err = txn.Delete("main", toReflectValue(obj1))
+	err = txn.Delete(0, toReflectValue(obj1))
 	if !errors.Is(err, memdb.ErrNotFound) {
 		t.Fatalf("expected err to be %v, got %v", memdb.ErrNotFound, err)
 	}
 
 	// Lookup of the primary obj1 should fail
-	raw, err = txn.First("main", "id", obj1.ID)
+	raw, err = txn.First(0, id.IndexID, obj1.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -316,7 +315,7 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	txn = db.Txn(false)
 
 	// Lookup of the primary obj1 should fail
-	raw, err = txn.First("main", "id", obj1.ID)
+	raw, err = txn.First(0, id.IndexID, obj1.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -326,7 +325,7 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 
 	// Check the shared secondary value,
 	// but the primary ID of obj2 should be first
-	raw, err = txn.First("main", "foo", obj2.Foo)
+	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -348,18 +347,18 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn.Insert("main", toReflectValue(obj1))
+	err := txn.Insert(0, toReflectValue(obj1))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	checkResult := func(txn *memdb.Txn) {
 		// Attempt a row scan on the ID
-		result, err := txn.Get("main", "id")
+		result, err := txn.Get(0, id.IndexID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -377,7 +376,7 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		}
 
 		// Attempt a row scan on the ID with specific ID
-		result, err = txn.Get("main", "id", obj1.ID)
+		result, err = txn.Get(0, id.IndexID, obj1.ID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -391,7 +390,7 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		}
 
 		// Attempt a row scan secondary index
-		result, err = txn.Get("main", "foo", obj1.Foo)
+		result, err = txn.Get(0, indexFoo.ID(), obj1.Foo)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -433,18 +432,18 @@ func TestTxn_InsertGetReverse_Simple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn.Insert("main", toReflectValue(obj1))
+	err := txn.Insert(0, toReflectValue(obj1))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn.Insert("main", toReflectValue(obj2))
+	err = txn.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	checkResult := func(txn *memdb.Txn) {
 		// Attempt a row scan on the ID
-		result, err := txn.GetReverse("main", "id")
+		result, err := txn.GetReverse(0, id.IndexID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -462,7 +461,7 @@ func TestTxn_InsertGetReverse_Simple(t *testing.T) {
 		}
 
 		// Attempt a row scan on the ID with specific ID
-		result, err = txn.GetReverse("main", "id", obj1.ID)
+		result, err = txn.GetReverse(0, id.IndexID, obj1.ID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -476,7 +475,7 @@ func TestTxn_InsertGetReverse_Simple(t *testing.T) {
 		}
 
 		// Attempt a row scan secondary index
-		result, err = txn.GetReverse("main", "foo", obj2.Foo)
+		result, err = txn.GetReverse(0, indexFoo.ID(), obj2.Foo)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -506,42 +505,25 @@ func TestTxn_InsertGetReverse_Simple(t *testing.T) {
 }
 
 func TestTxn_GetIterAndDelete(t *testing.T) {
-	var o TestObject
-	indexFoo := indices.NewFieldIndex("foo", &o, &o.Foo)
-	schema := &memdb.DBSchema{
-		Tables: map[string]*memdb.TableSchema{
-			"main": {
-				Name: "main",
-				Indexes: map[string]*memdb.IndexSchema{
-					"id": {
-						Name:    "id",
-						Unique:  true,
-						Indexer: id.Indexer{},
-					},
-					indexFoo.Name(): indexFoo.Schema(),
-				},
-			},
-		},
-	}
-	db, err := memdb.NewMemDB(schema)
+	db, err := memdb.NewMemDB([][]memdb.Index{{indexFoo}})
 	assertNilError(t, err)
 
 	key := "aaaa"
 	txn := db.Txn(true)
-	assertNilError(t, txn.Insert("main", toReflectValue(TestObject{ID: memdb.ID{1}, Foo: key})))
-	assertNilError(t, txn.Insert("main", toReflectValue(TestObject{ID: memdb.ID{123}, Foo: key})))
-	assertNilError(t, txn.Insert("main", toReflectValue(TestObject{ID: memdb.ID{2}, Foo: key})))
+	assertNilError(t, txn.Insert(0, toReflectValue(TestObject{ID: memdb.ID{1}, Foo: key})))
+	assertNilError(t, txn.Insert(0, toReflectValue(TestObject{ID: memdb.ID{123}, Foo: key})))
+	assertNilError(t, txn.Insert(0, toReflectValue(TestObject{ID: memdb.ID{2}, Foo: key})))
 	txn.Commit()
 
 	txn = db.Txn(true)
 	// Delete something
-	assertNilError(t, txn.Delete("main", toReflectValue(TestObject{ID: memdb.ID{123}, Foo: key})))
+	assertNilError(t, txn.Delete(0, toReflectValue(TestObject{ID: memdb.ID{123}, Foo: key})))
 
-	iter, err := txn.Get("main", "foo", key)
+	iter, err := txn.Get(0, indexFoo.ID(), key)
 	assertNilError(t, err)
 
 	for obj := iter.Next(); obj != nil; obj = iter.Next() {
-		assertNilError(t, txn.Delete("main", obj))
+		assertNilError(t, txn.Delete(0, obj))
 	}
 
 	txn.Commit()

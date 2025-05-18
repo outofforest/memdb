@@ -5,8 +5,13 @@ import (
 	"unsafe"
 )
 
-// Length is the length of ID value.
-const Length = 16
+const (
+	// Length is the length of ID value.
+	Length = 16
+
+	// IndexID is the ID of the ID index.
+	IndexID = 0
+)
 
 // ID is used to define ID field in entities.
 type ID [Length]byte

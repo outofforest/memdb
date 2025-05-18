@@ -2,6 +2,7 @@ package indices
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/pkg/errors"
 
@@ -9,7 +10,7 @@ import (
 )
 
 // NewMultiIndex creates new multiindex.
-func NewMultiIndex(subIndices ...Index) *MultiIndex {
+func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 	if len(subIndices) == 0 {
 		panic(errors.Errorf("no subindices has been provided"))
 	}
@@ -17,24 +18,17 @@ func NewMultiIndex(subIndices ...Index) *MultiIndex {
 	t := subIndices[0].Type()
 
 	var numOfArgs uint64
-	var name string
 	subIndexers := make([]memdb.Indexer, 0, len(subIndices))
 	for _, si := range subIndices {
 		if si.Type() != t {
 			panic(errors.Errorf("wrong type, expected: %s, got: %s", t, si.Type()))
 		}
 		numOfArgs += si.NumOfArgs()
-
-		if name != "" {
-			name += ","
-		}
-		name += si.Name()
 		schema := si.Schema()
 		subIndexers = append(subIndexers, schema.Indexer)
 	}
 
-	return &MultiIndex{
-		name:       name,
+	index := &MultiIndex{
 		numOfArgs:  numOfArgs,
 		entityType: t,
 		indexer: &multiIndexer{
@@ -42,19 +36,21 @@ func NewMultiIndex(subIndices ...Index) *MultiIndex {
 			subIndexers: subIndexers,
 		},
 	}
+	index.id = uint64(uintptr(unsafe.Pointer(index)))
+	return index
 }
 
 // MultiIndex compiles many indices into a single one.
 type MultiIndex struct {
-	name       string
+	id         uint64
 	numOfArgs  uint64
 	entityType reflect.Type
 	indexer    memdb.Indexer
 }
 
-// Name returns name of the index.
-func (i *MultiIndex) Name() string {
-	return i.name
+// ID returns ID of the index.
+func (i *MultiIndex) ID() uint64 {
+	return i.id
 }
 
 // Type returns type of entity index is defined for.
@@ -70,7 +66,6 @@ func (i *MultiIndex) NumOfArgs() uint64 {
 // Schema returns memdb index schema.
 func (i *MultiIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
-		Name:    i.name,
 		Indexer: i.indexer,
 	}
 }
@@ -78,7 +73,7 @@ func (i *MultiIndex) Schema() *memdb.IndexSchema {
 var _ memdb.Indexer = &multiIndexer{}
 
 type multiIndexer struct {
-	subIndices  []Index
+	subIndices  []memdb.Index
 	subIndexers []memdb.Indexer
 }
 

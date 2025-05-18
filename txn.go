@@ -11,9 +11,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/iradix"
+	"github.com/outofforest/memdb/id"
 )
-
-const idIndexName = "id"
 
 // ErrNotFound is returned when the requested item is not found.
 var ErrNotFound = errors.Errorf("not found")
@@ -85,19 +84,19 @@ func (txn *Txn) Commit() {
 // When updating an object, the obj provided should be a copy rather
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
-func (txn *Txn) Insert(table string, obj any) error {
+func (txn *Txn) Insert(table uint64, obj any) error {
 	if !txn.write {
 		return errors.Errorf("cannot insert in read-only transaction")
 	}
-
-	// Get the table schema
-	tableSchema, ok := txn.db.schema.Tables[table]
-	if !ok {
-		return errors.Errorf("invalid table '%s'", table)
+	if table >= uint64(len(txn.db.schema)) {
+		return errors.Errorf("invalid table '%d'", table)
 	}
 
+	// Get the table schema
+	tableSchema := txn.db.schema[table]
+
 	// Get the primary ID of the object
-	idSchema := tableSchema.Indexes[idIndexName]
+	idSchema := tableSchema[id.IndexID]
 	idIndexer := idSchema.Indexer
 	idSize := idIndexer.SizeFromObject(obj)
 	if idSize == 0 {
@@ -113,7 +112,7 @@ func (txn *Txn) Insert(table string, obj any) error {
 	// On an update, there is an existing object with the given
 	// primary ID. We do the update by deleting the current object
 	// and inserting the new object.
-	for _, indexSchema := range tableSchema.Indexes {
+	for _, indexSchema := range tableSchema {
 		indexer := indexSchema.Indexer
 		keySize := indexer.SizeFromObject(obj)
 		if keySize == 0 {
@@ -171,19 +170,19 @@ func (txn *Txn) Insert(table string, obj any) error {
 
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
-func (txn *Txn) Delete(table string, obj any) error {
+func (txn *Txn) Delete(table uint64, obj any) error {
 	if !txn.write {
 		return errors.Errorf("cannot delete in read-only transaction")
 	}
-
-	// Get the table schema.
-	tableSchema, ok := txn.db.schema.Tables[table]
-	if !ok {
-		return errors.Errorf("invalid table '%s'", table)
+	if table >= uint64(len(txn.db.schema)) {
+		return errors.Errorf("invalid table '%d'", table)
 	}
 
+	// Get the table schema.
+	tableSchema := txn.db.schema[table]
+
 	// Get the primary ID of the object.
-	idSchema := tableSchema.Indexes[idIndexName]
+	idSchema := tableSchema[id.IndexID]
 	idIndexer := idSchema.Indexer
 	idSize := idIndexer.SizeFromObject(obj)
 	if idSize == 0 {
@@ -200,7 +199,7 @@ func (txn *Txn) Delete(table string, obj any) error {
 	}
 
 	// Remove the object from all the indexes.
-	for _, indexSchema := range tableSchema.Indexes {
+	for _, indexSchema := range tableSchema {
 		indexer := indexSchema.Indexer
 		if keySize := indexer.SizeFromObject(existing); keySize > 0 {
 			if !indexSchema.Unique {
@@ -230,7 +229,7 @@ func (txn *Txn) Delete(table string, obj any) error {
 //
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
-func (txn *Txn) First(table, index string, args ...any) (any, error) {
+func (txn *Txn) First(table, index uint64, args ...any) (any, error) {
 	// Get the index value
 	indexSchema, val, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
@@ -261,7 +260,7 @@ func (txn *Txn) First(table, index string, args ...any) (any, error) {
 //
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
-func (txn *Txn) Last(table, index string, args ...any) (any, error) {
+func (txn *Txn) Last(table, index uint64, args ...any) (any, error) {
 	// Get the index value
 	indexSchema, val, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
@@ -285,6 +284,59 @@ func (txn *Txn) Last(table, index string, args ...any) (any, error) {
 	iter.SeekPrefix(val)
 	_, value, _ := iter.Previous()
 	return value, nil
+}
+
+// Get is used to construct a ResultIterator over all the rows that match the
+// given constraints of an index. The index values must match exactly (this
+// is not a range-based or prefix-based lookup) by default.
+//
+// Prefix lookups: if the named index implements PrefixIndexer, you may perform
+// prefix-based lookups by appending "_prefix" to the index name. In this
+// scenario, the index values given in args are treated as prefix lookups. For
+// example, a StringFieldIndex will match any string with the given value
+// as a prefix: "mem" matches "memdb".
+//
+// See the documentation for ResultIterator to understand the behaviour of the
+// returned ResultIterator.
+func (txn *Txn) Get(table, index uint64, args ...any) (ResultIterator, error) {
+	indexIter, val, err := txn.getIndexIterator(table, index, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Seek the iterator to the appropriate sub-set
+	indexIter.SeekPrefix(val)
+
+	// Create an iterator
+	iter := &radixIterator{
+		iter: indexIter,
+	}
+
+	return iter, nil
+}
+
+// GetReverse is used to construct a Reverse ResultIterator over all the
+// rows that match the given constraints of an index.
+// The returned ResultIterator's Next() will return the next Previous value.
+//
+// See the documentation on Get for details on arguments.
+//
+// See the documentation for ResultIterator to understand the behaviour of the
+// returned ResultIterator.
+func (txn *Txn) GetReverse(table, index uint64, args ...any) (ResultIterator, error) {
+	indexIter, val, err := txn.getIndexIteratorReverse(table, index, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Seek the iterator to the appropriate sub-set
+	indexIter.SeekPrefix(val)
+
+	// Create an iterator
+	iter := &radixReverseIterator{
+		iter: indexIter,
+	}
+	return iter, nil
 }
 
 // readableIndex returns a transaction usable for reading the given index in a
@@ -329,17 +381,17 @@ func (txn *Txn) writableIndex(indexID *[]byte) *iradix.Txn {
 
 // getIndexValue is used to get the IndexSchema and the value
 // used to scan the index given the parameters.
-func (txn *Txn) getIndexValue(table, index string, args ...any) (*IndexSchema, []byte, error) {
-	// Get the table schema.
-	tableSchema, ok := txn.db.schema.Tables[table]
-	if !ok {
-		return nil, nil, errors.Errorf("invalid table '%s'", table)
+func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, []byte, error) {
+	if table >= uint64(len(txn.db.schema)) {
+		return nil, nil, errors.Errorf("invalid table '%d'", table)
 	}
+	// Get the table schema.
+	tableSchema := txn.db.schema[table]
 
 	// Get the index schema.
-	indexSchema, ok := tableSchema.Indexes[index]
+	indexSchema, ok := tableSchema[index]
 	if !ok {
-		return nil, nil, errors.Errorf("invalid index '%s'", index)
+		return nil, nil, errors.Errorf("invalid index '%d'", index)
 	}
 
 	// Hot-path for when there are no arguments.
@@ -357,6 +409,38 @@ func (txn *Txn) getIndexValue(table, index string, args ...any) (*IndexSchema, [
 	b := make([]byte, keySize)
 	indexer.FromArgs(b, args...)
 	return indexSchema, b, nil
+}
+
+func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator, []byte, error) {
+	// Get the index value to scan
+	indexSchema, val, err := txn.getIndexValue(table, index, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Get the index itself
+	indexTxn := txn.readableIndex(&indexSchema.id)
+	indexRoot := indexTxn.Root()
+
+	// Get an iterator over the index
+	indexIter := indexRoot.Iterator()
+	return indexIter, val, nil
+}
+
+func (txn *Txn) getIndexIteratorReverse(table, index uint64, args ...any) (*iradix.ReverseIterator, []byte, error) {
+	// Get the index value to scan
+	indexSchema, val, err := txn.getIndexValue(table, index, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Get the index itself
+	indexTxn := txn.readableIndex(&indexSchema.id)
+	indexRoot := indexTxn.Root()
+
+	// Get an interator over the index
+	indexIter := indexRoot.ReverseIterator()
+	return indexIter, val, nil
 }
 
 // ResultIterator is used to iterate over a list of results from a query on a table.
@@ -380,91 +464,6 @@ type ResultIterator interface {
 	// Next returns the next result from the iterator. If there are no more results
 	// nil is returned.
 	Next() any
-}
-
-// Get is used to construct a ResultIterator over all the rows that match the
-// given constraints of an index. The index values must match exactly (this
-// is not a range-based or prefix-based lookup) by default.
-//
-// Prefix lookups: if the named index implements PrefixIndexer, you may perform
-// prefix-based lookups by appending "_prefix" to the index name. In this
-// scenario, the index values given in args are treated as prefix lookups. For
-// example, a StringFieldIndex will match any string with the given value
-// as a prefix: "mem" matches "memdb".
-//
-// See the documentation for ResultIterator to understand the behaviour of the
-// returned ResultIterator.
-func (txn *Txn) Get(table, index string, args ...any) (ResultIterator, error) {
-	indexIter, val, err := txn.getIndexIterator(table, index, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Seek the iterator to the appropriate sub-set
-	indexIter.SeekPrefix(val)
-
-	// Create an iterator
-	iter := &radixIterator{
-		iter: indexIter,
-	}
-
-	return iter, nil
-}
-
-// GetReverse is used to construct a Reverse ResultIterator over all the
-// rows that match the given constraints of an index.
-// The returned ResultIterator's Next() will return the next Previous value.
-//
-// See the documentation on Get for details on arguments.
-//
-// See the documentation for ResultIterator to understand the behaviour of the
-// returned ResultIterator.
-func (txn *Txn) GetReverse(table, index string, args ...any) (ResultIterator, error) {
-	indexIter, val, err := txn.getIndexIteratorReverse(table, index, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Seek the iterator to the appropriate sub-set
-	indexIter.SeekPrefix(val)
-
-	// Create an iterator
-	iter := &radixReverseIterator{
-		iter: indexIter,
-	}
-	return iter, nil
-}
-
-func (txn *Txn) getIndexIterator(table, index string, args ...any) (*iradix.Iterator, []byte, error) {
-	// Get the index value to scan
-	indexSchema, val, err := txn.getIndexValue(table, index, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Get the index itself
-	indexTxn := txn.readableIndex(&indexSchema.id)
-	indexRoot := indexTxn.Root()
-
-	// Get an iterator over the index
-	indexIter := indexRoot.Iterator()
-	return indexIter, val, nil
-}
-
-func (txn *Txn) getIndexIteratorReverse(table, index string, args ...any) (*iradix.ReverseIterator, []byte, error) {
-	// Get the index value to scan
-	indexSchema, val, err := txn.getIndexValue(table, index, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Get the index itself
-	indexTxn := txn.readableIndex(&indexSchema.id)
-	indexRoot := indexTxn.Root()
-
-	// Get an interator over the index
-	indexIter := indexRoot.ReverseIterator()
-	return indexIter, val, nil
 }
 
 // radixIterator is used to wrap an underlying iradix iterator.

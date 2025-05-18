@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/id"
 )
 
 func TestMemDB_Isolation(t *testing.T) {
@@ -33,11 +34,11 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1a := testObj()
 		obj1a.ID = id1
 		txn := db.Txn(true)
-		mustNoError(t, txn.Insert("main", toReflectValue(obj1a)))
+		mustNoError(t, txn.Insert(0, toReflectValue(obj1a)))
 
 		obj3 := testObj()
 		obj3.ID = id3
-		mustNoError(t, txn.Insert("main", toReflectValue(obj3)))
+		mustNoError(t, txn.Insert(0, toReflectValue(obj3)))
 		txn.Commit()
 		return db
 	}
@@ -51,15 +52,15 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj1b)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj2)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
 
 		txn2 := db2.Txn(false)
-		out, err := txn2.First("main", "id", id1)
+		out, err := txn2.First(0, id.IndexID, id1)
 		mustNoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -68,7 +69,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from snapshot should not observe uncommitted update (dirty read)")
 		}
 
-		out, err = txn2.First("main", "id", id2)
+		out, err = txn2.First(0, id.IndexID, id2)
 		mustNoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe uncommitted insert (dirty read)")
@@ -77,7 +78,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		// New snapshot should not observe uncommitted writes
 		db3 := db.Snapshot()
 		txn3 := db3.Txn(false)
-		out, err = txn3.First("main", "id", id1)
+		out, err = txn3.First(0, id.IndexID, id1)
 		mustNoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -95,15 +96,15 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj1b)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj2)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
 
 		txn2 := db.Txn(false)
-		out, err := txn2.First("main", "id", id1)
+		out, err := txn2.First(0, id.IndexID, id1)
 		mustNoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -112,7 +113,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from transaction should not observe uncommitted update (dirty read)")
 		}
 
-		out, err = txn2.First("main", "id", id2)
+		out, err = txn2.First(0, id.IndexID, id2)
 		mustNoError(t, err)
 		if out != nil {
 			t.Fatalf("read from transaction should not observe uncommitted insert (dirty read)")
@@ -128,18 +129,18 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj1b)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj2)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
 
 		// Commit
 		txn1.Commit()
 
 		txn2 := db2.Txn(false)
-		out, err := txn2.First("main", "id", id1)
+		out, err := txn2.First(0, id.IndexID, id1)
 		mustNoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -148,7 +149,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
 		}
 
-		out, err = txn2.First("main", "id", id2)
+		out, err = txn2.First(0, id.IndexID, id2)
 		mustNoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
@@ -163,19 +164,19 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj1b)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
-		mustNoError(t, txn1.Insert("main", toReflectValue(obj2)))
+		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
 
 		txn2 := db.Txn(false)
 
 		// Commit
 		txn1.Commit()
 
-		out, err := txn2.First("main", "id", id1)
+		out, err := txn2.First(0, id.IndexID, id1)
 		mustNoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -184,7 +185,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
 		}
 
-		out, err = txn2.First("main", "id", id2)
+		out, err = txn2.First(0, id.IndexID, id2)
 		mustNoError(t, err)
 		if out != nil {
 			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
@@ -199,11 +200,11 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1 := testObj()
 		obj1.ID = id1
 		obj1.Baz = "also"
-		mustNoError(t, txn2.Insert("main", toReflectValue(obj1)))
+		mustNoError(t, txn2.Insert(0, toReflectValue(obj1)))
 		txn2.Commit()
 
 		txn1 := db.Txn(false)
-		out, err := txn1.First("main", "id", id1)
+		out, err := txn1.First(0, id.IndexID, id1)
 		mustNoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
