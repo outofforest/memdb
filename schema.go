@@ -106,6 +106,8 @@ type IndexSchema struct {
 
 	Unique  bool
 	Indexer Indexer
+
+	id []byte
 }
 
 // Validate validates schema.

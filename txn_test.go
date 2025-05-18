@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/indices"
 )
 
@@ -515,7 +516,7 @@ func TestTxn_GetIterAndDelete(t *testing.T) {
 					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: indices.IDIndexer{},
+						Indexer: id.Indexer{},
 					},
 					indexFoo.Name(): indexFoo.Schema(),
 				},
