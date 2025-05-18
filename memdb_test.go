@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/memdb"
 )
 
 func TestMemDB_SingleWriter_MultiReader(t *testing.T) {

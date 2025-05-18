@@ -8,8 +8,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/outofforest/go-memdb"
-	"github.com/outofforest/go-memdb/indices"
+	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/indices"
 )
 
 func TestTxn_Read_AbortCommit(t *testing.T) {

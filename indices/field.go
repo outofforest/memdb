@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/memdb"
 )
 
 // NewFieldIndex defines new field index.

@@ -3,7 +3,7 @@ package indices
 import (
 	"reflect"
 
-	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/memdb"
 )
 
 // Index defines the interface of index.
