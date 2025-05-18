@@ -7,7 +7,7 @@ package memdb_test
 import (
 	"testing"
 
-	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/memdb"
 )
 
 func TestMemDB_Isolation(t *testing.T) {

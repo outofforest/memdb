@@ -1,4 +1,4 @@
-module github.com/outofforest/go-memdb
+module github.com/outofforest/memdb
 
 go 1.24.0
 

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/memdb"
 )
 
 var idType = reflect.TypeOf(memdb.ID{})

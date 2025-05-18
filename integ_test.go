@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/outofforest/go-memdb"
-	"github.com/outofforest/go-memdb/indices"
+	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/indices"
 )
 
 // Test that multiple concurrent transactions are isolated from each other.

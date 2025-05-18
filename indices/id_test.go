@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/memdb"
 )
 
 type entity struct {

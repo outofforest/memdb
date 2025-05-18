@@ -6,8 +6,8 @@ package memdb_test
 import (
 	"testing"
 
-	"github.com/outofforest/go-memdb"
-	"github.com/outofforest/go-memdb/indices"
+	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/indices"
 )
 
 func TestDBSchema_Validate(t *testing.T) {
