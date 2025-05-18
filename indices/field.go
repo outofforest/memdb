@@ -103,8 +103,8 @@ func findField(t reflect.Type, offset uintptr) reflect.Type {
 	}
 }
 
-func valueByOffset[T any](v reflect.Value, offset uintptr) T {
-	return *(*T)(unsafe.Pointer(uintptr(v.UnsafePointer()) + offset))
+func valueByOffset[T any](o unsafe.Pointer, offset uintptr) T {
+	return *(*T)(unsafe.Pointer(uintptr(o) + offset))
 }
 
 func boolToBytes(v bool, b []byte) {
@@ -119,7 +119,7 @@ type boolIndexer struct {
 	offset uintptr
 }
 
-func (i boolIndexer) SizeFromObject(o any) uint64 {
+func (i boolIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 1
 }
 
@@ -132,8 +132,8 @@ func (i boolIndexer) FromArgs(b []byte, args ...any) uint64 {
 	return 1
 }
 
-func (i boolIndexer) FromObject(b []byte, o any) uint64 {
-	boolToBytes(valueByOffset[bool](o.(reflect.Value), i.offset), b)
+func (i boolIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	boolToBytes(valueByOffset[bool](o, i.offset), b)
 	return 1
 }
 
@@ -147,8 +147,8 @@ type stringIndexer struct {
 	offset uintptr
 }
 
-func (i stringIndexer) SizeFromObject(o any) uint64 {
-	return uint64(len(valueByOffset[string](o.(reflect.Value), i.offset))) + 1
+func (i stringIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
+	return uint64(len(valueByOffset[string](o, i.offset))) + 1
 }
 
 func (i stringIndexer) SizeFromArgs(args ...any) uint64 {
@@ -159,8 +159,8 @@ func (i stringIndexer) FromArgs(b []byte, args ...any) uint64 {
 	return stringToBytes(reflect.ValueOf(args[0]).String(), b)
 }
 
-func (i stringIndexer) FromObject(b []byte, o any) uint64 {
-	return stringToBytes(valueByOffset[string](o.(reflect.Value), i.offset), b)
+func (i stringIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	return stringToBytes(valueByOffset[string](o, i.offset), b)
 }
 
 var (
@@ -179,7 +179,7 @@ type timeIndexer struct {
 	offset uintptr
 }
 
-func (i timeIndexer) SizeFromObject(o any) uint64 {
+func (i timeIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 12
 }
 
@@ -192,8 +192,8 @@ func (i timeIndexer) FromArgs(b []byte, args ...any) uint64 {
 	return 12
 }
 
-func (i timeIndexer) FromObject(b []byte, o any) uint64 {
-	timeToBytes(valueByOffset[time.Time](o.(reflect.Value), i.offset), b)
+func (i timeIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	timeToBytes(valueByOffset[time.Time](o, i.offset), b)
 	return 12
 }
 
@@ -207,7 +207,7 @@ type int8Indexer struct {
 	offset uintptr
 }
 
-func (i int8Indexer) SizeFromObject(o any) uint64 {
+func (i int8Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 1
 }
 
@@ -220,8 +220,8 @@ func (i int8Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 1
 }
 
-func (i int8Indexer) FromObject(b []byte, o any) uint64 {
-	int8ToBytes(valueByOffset[int8](o.(reflect.Value), i.offset), b)
+func (i int8Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	int8ToBytes(valueByOffset[int8](o, i.offset), b)
 	return 1
 }
 
@@ -235,7 +235,7 @@ type int16Indexer struct {
 	offset uintptr
 }
 
-func (i int16Indexer) SizeFromObject(o any) uint64 {
+func (i int16Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 2
 }
 
@@ -248,8 +248,8 @@ func (i int16Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 2
 }
 
-func (i int16Indexer) FromObject(b []byte, o any) uint64 {
-	int16ToBytes(valueByOffset[int16](o.(reflect.Value), i.offset), b)
+func (i int16Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	int16ToBytes(valueByOffset[int16](o, i.offset), b)
 	return 2
 }
 
@@ -263,7 +263,7 @@ type int32Indexer struct {
 	offset uintptr
 }
 
-func (i int32Indexer) SizeFromObject(o any) uint64 {
+func (i int32Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 4
 }
 
@@ -276,8 +276,8 @@ func (i int32Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 4
 }
 
-func (i int32Indexer) FromObject(b []byte, o any) uint64 {
-	int32ToBytes(valueByOffset[int32](o.(reflect.Value), i.offset), b)
+func (i int32Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	int32ToBytes(valueByOffset[int32](o, i.offset), b)
 	return 4
 }
 
@@ -291,7 +291,7 @@ type int64Indexer struct {
 	offset uintptr
 }
 
-func (i int64Indexer) SizeFromObject(o any) uint64 {
+func (i int64Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 8
 }
 
@@ -304,8 +304,8 @@ func (i int64Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 8
 }
 
-func (i int64Indexer) FromObject(b []byte, o any) uint64 {
-	int64ToBytes(valueByOffset[int64](o.(reflect.Value), i.offset), b)
+func (i int64Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	int64ToBytes(valueByOffset[int64](o, i.offset), b)
 	return 8
 }
 
@@ -319,7 +319,7 @@ type uint8Indexer struct {
 	offset uintptr
 }
 
-func (i uint8Indexer) SizeFromObject(o any) uint64 {
+func (i uint8Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 1
 }
 
@@ -332,8 +332,8 @@ func (i uint8Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 1
 }
 
-func (i uint8Indexer) FromObject(b []byte, o any) uint64 {
-	uint8ToBytes(valueByOffset[uint8](o.(reflect.Value), i.offset), b)
+func (i uint8Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	uint8ToBytes(valueByOffset[uint8](o, i.offset), b)
 	return 1
 }
 
@@ -347,7 +347,7 @@ type uint16Indexer struct {
 	offset uintptr
 }
 
-func (i uint16Indexer) SizeFromObject(o any) uint64 {
+func (i uint16Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 2
 }
 
@@ -360,8 +360,8 @@ func (i uint16Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 2
 }
 
-func (i uint16Indexer) FromObject(b []byte, o any) uint64 {
-	uint16ToBytes(valueByOffset[uint16](o.(reflect.Value), i.offset), b)
+func (i uint16Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	uint16ToBytes(valueByOffset[uint16](o, i.offset), b)
 	return 2
 }
 
@@ -375,7 +375,7 @@ type uint32Indexer struct {
 	offset uintptr
 }
 
-func (i uint32Indexer) SizeFromObject(o any) uint64 {
+func (i uint32Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 4
 }
 
@@ -388,8 +388,8 @@ func (i uint32Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 4
 }
 
-func (i uint32Indexer) FromObject(b []byte, o any) uint64 {
-	uint32ToBytes(valueByOffset[uint32](o.(reflect.Value), i.offset), b)
+func (i uint32Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	uint32ToBytes(valueByOffset[uint32](o, i.offset), b)
 	return 4
 }
 
@@ -403,7 +403,7 @@ type uint64Indexer struct {
 	offset uintptr
 }
 
-func (i uint64Indexer) SizeFromObject(o any) uint64 {
+func (i uint64Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 8
 }
 
@@ -416,8 +416,8 @@ func (i uint64Indexer) FromArgs(b []byte, args ...any) uint64 {
 	return 8
 }
 
-func (i uint64Indexer) FromObject(b []byte, o any) uint64 {
-	uint64ToBytes(valueByOffset[uint64](o.(reflect.Value), i.offset), b)
+func (i uint64Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	uint64ToBytes(valueByOffset[uint64](o, i.offset), b)
 	return 8
 }
 
@@ -473,18 +473,18 @@ func verify(
 
 	switch v := o.(type) {
 	case verifyPart:
-		size2 := indexer.SizeFromObject(reflect.ValueOf(v.o))
+		size2 := indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer())
 		requireT.Greater(size2, size)
 		b := make([]byte, size2)
-		requireT.Equal(size2, indexer.FromObject(b, reflect.ValueOf(v.o)))
+		requireT.Equal(size2, indexer.FromObject(b, reflect.ValueOf(v.o).UnsafePointer()))
 		requireT.Equal(expected, b[:size])
 	case verifyMissing:
-		requireT.Zero(indexer.SizeFromObject(reflect.ValueOf(v.o)))
+		requireT.Zero(indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer()))
 	default:
-		size2 := indexer.SizeFromObject(reflect.ValueOf(o))
+		size2 := indexer.SizeFromObject(reflect.ValueOf(o).UnsafePointer())
 		requireT.Equal(size, size2)
 		b := make([]byte, size)
-		requireT.Equal(size, indexer.FromObject(b, reflect.ValueOf(o)))
+		requireT.Equal(size, indexer.FromObject(b, reflect.ValueOf(o).UnsafePointer()))
 		requireT.Equal(expected, b)
 	}
 }

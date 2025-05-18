@@ -4,6 +4,9 @@
 package memdb
 
 import (
+	"reflect"
+	"unsafe"
+
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/memdb/id"
@@ -51,10 +54,18 @@ func (s DBSchema) Validate() error {
 	return nil
 }
 
+// Index defines the interface of index.
+type Index interface {
+	ID() uint64
+	Type() reflect.Type
+	NumOfArgs() uint64
+	Schema() *IndexSchema
+}
+
 // Indexer is an interface used for defining indexes.
 type Indexer interface {
 	// SizeFromObject returns byte size of the index key based on the object.
-	SizeFromObject(o any) uint64
+	SizeFromObject(o unsafe.Pointer) uint64
 
 	// SizeFromArgs returns byte size of the index key based on the args.
 	SizeFromArgs(args ...any) uint64
@@ -63,7 +74,7 @@ type Indexer interface {
 	FromArgs(b []byte, args ...any) uint64
 
 	// FromObject extracts the index value from an object.
-	FromObject(b []byte, o any) uint64
+	FromObject(b []byte, o unsafe.Pointer) uint64
 }
 
 // IndexSchema is the schema for an index. An index defines how a table is

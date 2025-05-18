@@ -22,7 +22,7 @@ var idType = reflect.TypeOf(ID{})
 type Indexer struct{}
 
 // SizeFromObject returns expected index slice size given the object.
-func (i Indexer) SizeFromObject(o any) uint64 {
+func (i Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return Length
 }
 
@@ -39,7 +39,7 @@ func (i Indexer) FromArgs(b []byte, args ...any) uint64 {
 }
 
 // FromObject sets index slice given the object.
-func (i Indexer) FromObject(b []byte, o any) uint64 {
-	copy(b, unsafe.Slice((*byte)(o.(reflect.Value).UnsafePointer()), Length))
+func (i Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	copy(b, unsafe.Slice((*byte)(o), Length))
 	return Length
 }

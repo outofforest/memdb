@@ -5,6 +5,7 @@ package memdb
 
 import (
 	"bytes"
+	"reflect"
 	"sync/atomic"
 	"unsafe"
 
@@ -84,13 +85,18 @@ func (txn *Txn) Commit() {
 // When updating an object, the obj provided should be a copy rather
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
-func (txn *Txn) Insert(table uint64, obj any) error {
+func (txn *Txn) Insert(table uint64, obj *reflect.Value) error {
 	if !txn.write {
 		return errors.Errorf("cannot insert in read-only transaction")
 	}
 	if table >= uint64(len(txn.db.schema)) {
 		return errors.Errorf("invalid table '%d'", table)
 	}
+	if obj.Kind() != reflect.Ptr {
+		return errors.Errorf("non-pointer object '%v'", obj.Type())
+	}
+
+	objPtr := obj.UnsafePointer()
 
 	// Get the table schema
 	tableSchema := txn.db.schema[table]
@@ -98,12 +104,8 @@ func (txn *Txn) Insert(table uint64, obj any) error {
 	// Get the primary ID of the object
 	idSchema := tableSchema[id.IndexID]
 	idIndexer := idSchema.Indexer
-	idSize := idIndexer.SizeFromObject(obj)
-	if idSize == 0 {
-		return errors.Errorf("object missing primary index")
-	}
-	id := make([]byte, idSize)
-	idIndexer.FromObject(id, obj)
+	id := make([]byte, id.Length)
+	idIndexer.FromObject(id, objPtr)
 
 	// Lookup the object by ID first, to see if this is an update
 	idTxn := txn.writableIndex(&idSchema.id)
@@ -114,7 +116,7 @@ func (txn *Txn) Insert(table uint64, obj any) error {
 	// and inserting the new object.
 	for _, indexSchema := range tableSchema {
 		indexer := indexSchema.Indexer
-		keySize := indexer.SizeFromObject(obj)
+		keySize := indexer.SizeFromObject(objPtr)
 		if keySize == 0 {
 			continue
 		}
@@ -124,7 +126,7 @@ func (txn *Txn) Insert(table uint64, obj any) error {
 		}
 
 		b := make([]byte, keySize)
-		n := indexSchema.Indexer.FromObject(b, obj)
+		n := indexSchema.Indexer.FromObject(b, objPtr)
 
 		// Handle non-unique index by computing a unique index.
 		// This is done by appending the primary key which must
@@ -138,13 +140,15 @@ func (txn *Txn) Insert(table uint64, obj any) error {
 		// Handle the update by deleting from the index first
 		//nolint:nestif
 		if update {
-			if keySize := indexer.SizeFromObject(existing); keySize > 0 {
+			existingPtr := existing.(*reflect.Value).UnsafePointer()
+
+			if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
 				if !indexSchema.Unique {
 					keySize += uint64(len(id))
 				}
 
 				existingB := make([]byte, keySize)
-				existingN := indexer.FromObject(existingB, existing)
+				existingN := indexer.FromObject(existingB, existingPtr)
 
 				// If we are writing to the same index with the same value,
 				// we can avoid the delete as the insert will overwrite the
@@ -170,13 +174,18 @@ func (txn *Txn) Insert(table uint64, obj any) error {
 
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
-func (txn *Txn) Delete(table uint64, obj any) error {
+func (txn *Txn) Delete(table uint64, obj *reflect.Value) error {
 	if !txn.write {
 		return errors.Errorf("cannot delete in read-only transaction")
 	}
 	if table >= uint64(len(txn.db.schema)) {
 		return errors.Errorf("invalid table '%d'", table)
 	}
+	if obj.Kind() != reflect.Ptr {
+		return errors.Errorf("non-pointer object '%v'", obj.Type())
+	}
+
+	objPtr := obj.UnsafePointer()
 
 	// Get the table schema.
 	tableSchema := txn.db.schema[table]
@@ -184,12 +193,8 @@ func (txn *Txn) Delete(table uint64, obj any) error {
 	// Get the primary ID of the object.
 	idSchema := tableSchema[id.IndexID]
 	idIndexer := idSchema.Indexer
-	idSize := idIndexer.SizeFromObject(obj)
-	if idSize == 0 {
-		return errors.Errorf("object missing primary index")
-	}
-	id := make([]byte, idSize)
-	idIndexer.FromObject(id, obj)
+	id := make([]byte, id.Length)
+	idIndexer.FromObject(id, objPtr)
 
 	// Lookup the object by ID first, check if we should continue.
 	idTxn := txn.writableIndex(&idSchema.id)
@@ -198,16 +203,18 @@ func (txn *Txn) Delete(table uint64, obj any) error {
 		return ErrNotFound
 	}
 
+	existingPtr := existing.(*reflect.Value).UnsafePointer()
+
 	// Remove the object from all the indexes.
 	for _, indexSchema := range tableSchema {
 		indexer := indexSchema.Indexer
-		if keySize := indexer.SizeFromObject(existing); keySize > 0 {
+		if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
 			if !indexSchema.Unique {
 				keySize += uint64(len(id))
 			}
 
 			existingB := make([]byte, keySize)
-			existingN := indexer.FromObject(existingB, existing)
+			existingN := indexer.FromObject(existingB, existingPtr)
 
 			// Handle non-unique index by computing a unique index.
 			// This is done by appending the primary key which must
@@ -229,7 +236,7 @@ func (txn *Txn) Delete(table uint64, obj any) error {
 //
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
-func (txn *Txn) First(table, index uint64, args ...any) (any, error) {
+func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) {
 	// Get the index value
 	indexSchema, val, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
@@ -245,14 +252,17 @@ func (txn *Txn) First(table, index uint64, args ...any) (any, error) {
 		if !ok {
 			return nil, nil //nolint:nilnil
 		}
-		return obj, nil
+		return obj.(*reflect.Value), nil
 	}
 
 	// Handle non-unique index by using an iterator and getting the first value
 	iter := indexTxn.Root().Iterator()
 	iter.SeekPrefix(val)
-	_, value, _ := iter.Next()
-	return value, nil
+	_, value, ok := iter.Next()
+	if !ok {
+		return nil, nil //nolint:nilnil
+	}
+	return value.(*reflect.Value), nil
 }
 
 // Last is used to return the last matching object for
@@ -260,7 +270,7 @@ func (txn *Txn) First(table, index uint64, args ...any) (any, error) {
 //
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
-func (txn *Txn) Last(table, index uint64, args ...any) (any, error) {
+func (txn *Txn) Last(table, index uint64, args ...any) (*reflect.Value, error) {
 	// Get the index value
 	indexSchema, val, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
@@ -276,14 +286,17 @@ func (txn *Txn) Last(table, index uint64, args ...any) (any, error) {
 		if !ok {
 			return nil, nil //nolint:nilnil
 		}
-		return obj, nil
+		return obj.(*reflect.Value), nil
 	}
 
 	// Handle non-unique index by using an iterator and getting the last value
 	iter := indexTxn.Root().ReverseIterator()
 	iter.SeekPrefix(val)
-	_, value, _ := iter.Previous()
-	return value, nil
+	_, value, ok := iter.Previous()
+	if !ok {
+		return nil, nil //nolint:nilnil
+	}
+	return value.(*reflect.Value), nil
 }
 
 // Get is used to construct a ResultIterator over all the rows that match the
@@ -463,7 +476,7 @@ func (txn *Txn) getIndexIteratorReverse(table, index uint64, args ...any) (*irad
 type ResultIterator interface {
 	// Next returns the next result from the iterator. If there are no more results
 	// nil is returned.
-	Next() any
+	Next() *reflect.Value
 }
 
 // radixIterator is used to wrap an underlying iradix iterator.
@@ -473,22 +486,22 @@ type radixIterator struct {
 	iter *iradix.Iterator
 }
 
-func (r *radixIterator) Next() any {
+func (r *radixIterator) Next() *reflect.Value {
 	_, value, ok := r.iter.Next()
 	if !ok {
 		return nil
 	}
-	return value
+	return value.(*reflect.Value)
 }
 
 type radixReverseIterator struct {
 	iter *iradix.ReverseIterator
 }
 
-func (r *radixReverseIterator) Next() any {
+func (r *radixReverseIterator) Next() *reflect.Value {
 	_, value, ok := r.iter.Previous()
 	if !ok {
 		return nil
 	}
-	return value
+	return value.(*reflect.Value)
 }

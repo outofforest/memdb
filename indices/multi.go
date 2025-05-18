@@ -77,7 +77,7 @@ type multiIndexer struct {
 	subIndexers []memdb.Indexer
 }
 
-func (mi *multiIndexer) SizeFromObject(o any) uint64 {
+func (mi *multiIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	var size uint64
 	for _, si := range mi.subIndexers {
 		s := si.SizeFromObject(o)
@@ -127,7 +127,7 @@ func (mi *multiIndexer) FromArgs(b []byte, args ...any) uint64 {
 	return n
 }
 
-func (mi *multiIndexer) FromObject(b []byte, o any) uint64 {
+func (mi *multiIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	var n uint64
 	for _, si := range mi.subIndexers {
 		n += si.FromObject(b[n:], o)

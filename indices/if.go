@@ -63,8 +63,8 @@ type ifIndexer[T any] struct {
 	f          func(o *T) bool
 }
 
-func (ii ifIndexer[T]) SizeFromObject(o any) uint64 {
-	if !ii.f(o.(reflect.Value).Interface().(*T)) {
+func (ii ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
+	if !ii.f((*T)(o)) {
 		return 0
 	}
 	return ii.subIndexer.SizeFromObject(o)
@@ -78,8 +78,8 @@ func (ii ifIndexer[T]) FromArgs(b []byte, args ...any) uint64 {
 	return ii.subIndexer.FromArgs(b, args...)
 }
 
-func (ii ifIndexer[T]) FromObject(b []byte, o any) uint64 {
-	if !ii.f(o.(reflect.Value).Interface().(*T)) {
+func (ii ifIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	if !ii.f((*T)(o)) {
 		return 0
 	}
 	return ii.subIndexer.FromObject(b, o)

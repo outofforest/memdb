@@ -345,16 +345,16 @@ func testVisit(personID, placeID memdb.ID) TestVisit {
 	}
 }
 
-func toReflectValue(obj any) reflect.Value {
+func toReflectValue(obj any) *reflect.Value {
 	v := reflect.ValueOf(obj)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 	v2 := reflect.New(v.Type())
 	v2.Elem().Set(v)
-	return v2
+	return &v2
 }
 
 func fromReflectValue[T any](v any) T {
-	return v.(reflect.Value).Elem().Interface().(T)
+	return v.(*reflect.Value).Elem().Interface().(T)
 }
