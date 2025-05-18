@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/indices"
 )
 
@@ -53,7 +54,7 @@ func TestTableSchema_Validate(t *testing.T) {
 			"id": {
 				Name:    "id",
 				Unique:  true,
-				Indexer: indices.IDIndexer{},
+				Indexer: id.Indexer{},
 			},
 		},
 	}
@@ -76,7 +77,7 @@ func TestIndexSchema_Validate(t *testing.T) {
 		t.Fatalf("should not validate, no indexer")
 	}
 
-	s.Indexer = indices.IDIndexer{}
+	s.Indexer = id.Indexer{}
 	err = s.Validate()
 	if err != nil {
 		t.Fatalf("should validate: %v", err)
@@ -95,7 +96,7 @@ func testValidSchema() *memdb.DBSchema {
 					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: indices.IDIndexer{},
+						Indexer: id.Indexer{},
 					},
 					indexFoo.Name(): indexFoo.Schema(),
 				},

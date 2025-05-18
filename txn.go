@@ -18,12 +18,6 @@ const idIndexName = "id"
 // ErrNotFound is returned when the requested item is not found.
 var ErrNotFound = errors.Errorf("not found")
 
-// tableIndex is a tuple of (Table, Index) used for lookups.
-type tableIndex struct {
-	Table string
-	Index string
-}
-
 // Txn is a transaction against a MemDB.
 // This can be a read or write transaction.
 type Txn struct {
@@ -31,51 +25,7 @@ type Txn struct {
 	write   bool
 	rootTxn *iradix.Txn
 
-	modified map[tableIndex]*iradix.Txn
-}
-
-// readableIndex returns a transaction usable for reading the given index in a
-// table. If the transaction is a write transaction with modifications, a clone of the
-// modified index will be returned.
-func (txn *Txn) readableIndex(table, index string) *iradix.Txn {
-	// Look for existing transaction
-	if txn.write && txn.modified != nil {
-		key := tableIndex{table, index}
-		exist, ok := txn.modified[key]
-		if ok {
-			return exist.Clone()
-		}
-	}
-
-	// Create a read transaction
-	path := indexPath(table, index)
-	raw, _ := txn.rootTxn.Get(path)
-	indexTxn := iradix.NewTxn(raw.(*iradix.Node))
-	return indexTxn
-}
-
-// writableIndex returns a transaction usable for modifying the
-// given index in a table.
-func (txn *Txn) writableIndex(table, index string) *iradix.Txn {
-	if txn.modified == nil {
-		txn.modified = make(map[tableIndex]*iradix.Txn)
-	}
-
-	// Look for existing transaction
-	key := tableIndex{table, index}
-	exist, ok := txn.modified[key]
-	if ok {
-		return exist
-	}
-
-	// Start a new transaction
-	path := indexPath(table, index)
-	raw, _ := txn.rootTxn.Get(path)
-	indexTxn := iradix.NewTxn(raw.(*iradix.Node))
-
-	// Keep this open for the duration of the txn
-	txn.modified[key] = indexTxn
-	return indexTxn
+	modified map[*[]byte]*iradix.Txn
 }
 
 // Abort is used to cancel this transaction.
@@ -116,8 +66,7 @@ func (txn *Txn) Commit() {
 
 	// Commit each sub-transaction scoped to (table, index)
 	for key, subTxn := range txn.modified {
-		path := indexPath(key.Table, key.Index)
-		txn.rootTxn.Insert(path, subTxn.Commit())
+		txn.rootTxn.Insert(*key, subTxn.Commit())
 	}
 
 	// Update the root of the DB
@@ -148,7 +97,8 @@ func (txn *Txn) Insert(table string, obj any) error {
 	}
 
 	// Get the primary ID of the object
-	idIndexer := tableSchema.Indexes[idIndexName].Indexer
+	idSchema := tableSchema.Indexes[idIndexName]
+	idIndexer := idSchema.Indexer
 	idSize := idIndexer.SizeFromObject(obj)
 	if idSize == 0 {
 		return errors.Errorf("object missing primary index")
@@ -157,13 +107,13 @@ func (txn *Txn) Insert(table string, obj any) error {
 	idIndexer.FromObject(id, obj)
 
 	// Lookup the object by ID first, to see if this is an update
-	idTxn := txn.writableIndex(table, idIndexName)
+	idTxn := txn.writableIndex(&idSchema.id)
 	existing, update := idTxn.Get(id)
 
 	// On an update, there is an existing object with the given
 	// primary ID. We do the update by deleting the current object
 	// and inserting the new object.
-	for name, indexSchema := range tableSchema.Indexes {
+	for _, indexSchema := range tableSchema.Indexes {
 		indexer := indexSchema.Indexer
 		keySize := indexer.SizeFromObject(obj)
 		if keySize == 0 {
@@ -184,7 +134,7 @@ func (txn *Txn) Insert(table string, obj any) error {
 			copy(b[n:], id)
 		}
 
-		indexTxn := txn.writableIndex(table, name)
+		indexTxn := txn.writableIndex(&indexSchema.id)
 
 		// Handle the update by deleting from the index first
 		//nolint:nestif
@@ -233,7 +183,8 @@ func (txn *Txn) Delete(table string, obj any) error {
 	}
 
 	// Get the primary ID of the object.
-	idIndexer := tableSchema.Indexes[idIndexName].Indexer
+	idSchema := tableSchema.Indexes[idIndexName]
+	idIndexer := idSchema.Indexer
 	idSize := idIndexer.SizeFromObject(obj)
 	if idSize == 0 {
 		return errors.Errorf("object missing primary index")
@@ -242,14 +193,14 @@ func (txn *Txn) Delete(table string, obj any) error {
 	idIndexer.FromObject(id, obj)
 
 	// Lookup the object by ID first, check if we should continue.
-	idTxn := txn.writableIndex(table, idIndexName)
+	idTxn := txn.writableIndex(&idSchema.id)
 	existing, ok := idTxn.Get(id)
 	if !ok {
 		return ErrNotFound
 	}
 
 	// Remove the object from all the indexes.
-	for name, indexSchema := range tableSchema.Indexes {
+	for _, indexSchema := range tableSchema.Indexes {
 		indexer := indexSchema.Indexer
 		if keySize := indexer.SizeFromObject(existing); keySize > 0 {
 			if !indexSchema.Unique {
@@ -266,7 +217,7 @@ func (txn *Txn) Delete(table string, obj any) error {
 				copy(existingB[existingN:], id)
 			}
 
-			indexTxn := txn.writableIndex(table, name)
+			indexTxn := txn.writableIndex(&indexSchema.id)
 
 			indexTxn.Delete(existingB)
 		}
@@ -287,7 +238,7 @@ func (txn *Txn) First(table, index string, args ...any) (any, error) {
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(table, indexSchema.Name)
+	indexTxn := txn.readableIndex(&indexSchema.id)
 
 	// Do an exact lookup
 	if indexSchema.Unique && val != nil {
@@ -318,7 +269,7 @@ func (txn *Txn) Last(table, index string, args ...any) (any, error) {
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(table, indexSchema.Name)
+	indexTxn := txn.readableIndex(&indexSchema.id)
 
 	// Do an exact lookup
 	if indexSchema.Unique && val != nil {
@@ -334,6 +285,46 @@ func (txn *Txn) Last(table, index string, args ...any) (any, error) {
 	iter.SeekPrefix(val)
 	_, value, _ := iter.Previous()
 	return value, nil
+}
+
+// readableIndex returns a transaction usable for reading the given index in a
+// table. If the transaction is a write transaction with modifications, a clone of the
+// modified index will be returned.
+func (txn *Txn) readableIndex(indexID *[]byte) *iradix.Txn {
+	// Look for existing transaction
+	if txn.write && txn.modified != nil {
+		exist, ok := txn.modified[indexID]
+		if ok {
+			return exist.Clone()
+		}
+	}
+
+	// Create a read transaction
+	raw, _ := txn.rootTxn.Get(*indexID)
+	indexTxn := iradix.NewTxn(raw.(*iradix.Node))
+	return indexTxn
+}
+
+// writableIndex returns a transaction usable for modifying the
+// given index in a table.
+func (txn *Txn) writableIndex(indexID *[]byte) *iradix.Txn {
+	if txn.modified == nil {
+		txn.modified = map[*[]byte]*iradix.Txn{}
+	}
+
+	// Look for existing transaction
+	exist, ok := txn.modified[indexID]
+	if ok {
+		return exist
+	}
+
+	// Start a new transaction
+	raw, _ := txn.rootTxn.Get(*indexID)
+	indexTxn := iradix.NewTxn(raw.(*iradix.Node))
+
+	// Keep this open for the duration of the txn
+	txn.modified[indexID] = indexTxn
+	return indexTxn
 }
 
 // getIndexValue is used to get the IndexSchema and the value
@@ -452,7 +443,7 @@ func (txn *Txn) getIndexIterator(table, index string, args ...any) (*iradix.Iter
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(table, indexSchema.Name)
+	indexTxn := txn.readableIndex(&indexSchema.id)
 	indexRoot := indexTxn.Root()
 
 	// Get an iterator over the index
@@ -468,7 +459,7 @@ func (txn *Txn) getIndexIteratorReverse(table, index string, args ...any) (*irad
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(table, indexSchema.Name)
+	indexTxn := txn.readableIndex(&indexSchema.id)
 	indexRoot := indexTxn.Root()
 
 	// Get an interator over the index

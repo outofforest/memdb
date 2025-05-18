@@ -6,11 +6,13 @@
 package memdb
 
 import (
+	"encoding/binary"
 	"sync"
 	"sync/atomic"
 	"unsafe"
 
 	"github.com/outofforest/iradix"
+	"github.com/outofforest/memdb/id"
 )
 
 // MemDB is an in-memory database providing Atomicity, Consistency, and
@@ -36,6 +38,31 @@ type MemDB struct {
 
 // NewMemDB creates a new MemDB with the given schema.
 func NewMemDB(schema *DBSchema) (*MemDB, error) {
+	var indexID uint64
+	var indexIDBytes [8]byte
+	for _, t := range schema.Tables {
+		if t.Indexes == nil {
+			t.Indexes = map[string]*IndexSchema{}
+		}
+		t.Indexes[idIndexName] = &IndexSchema{
+			Name:    idIndexName,
+			Unique:  true,
+			Indexer: id.Indexer{},
+		}
+
+		for _, i := range t.Indexes {
+			indexID++
+			binary.BigEndian.PutUint64(indexIDBytes[:], indexID)
+			for j, b := range indexIDBytes {
+				if b != 0 {
+					i.id = make([]byte, len(indexIDBytes[j:]))
+					copy(i.id, indexIDBytes[j:])
+					break
+				}
+			}
+		}
+	}
+
 	// Validate the schema
 	if err := schema.Validate(); err != nil {
 		return nil, err
@@ -95,17 +122,11 @@ func (db *MemDB) Snapshot() *MemDB {
 // be called only once after allocating a MemDB.
 func (db *MemDB) initialize() {
 	txn := iradix.NewTxn(db.getRoot())
-	for tName, tableSchema := range db.schema.Tables {
-		for iName := range tableSchema.Indexes {
+	for _, tableSchema := range db.schema.Tables {
+		for _, i := range tableSchema.Indexes {
 			index := iradix.New()
-			path := indexPath(tName, iName)
-			txn.Insert(path, index)
+			txn.Insert(i.id, index)
 		}
 	}
 	db.root = unsafe.Pointer(txn.Commit())
-}
-
-// indexPath returns the path from the root to the given table index.
-func indexPath(table, index string) []byte {
-	return []byte(table + "." + index)
 }

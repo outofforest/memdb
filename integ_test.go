@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/indices"
 )
 
@@ -300,7 +301,7 @@ func testComplexSchema() *memdb.DBSchema {
 					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: indices.IDIndexer{},
+						Indexer: id.Indexer{},
 					},
 					personNameSchema.Name:         personNameSchema,
 					personAgeIndex.Name():         personAgeIndex.Schema(),
@@ -313,7 +314,7 @@ func testComplexSchema() *memdb.DBSchema {
 					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: indices.IDIndexer{},
+						Indexer: id.Indexer{},
 					},
 					placeNameIndex.Name(): placeNameIndex.Schema(),
 				},
@@ -324,7 +325,7 @@ func testComplexSchema() *memdb.DBSchema {
 					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: indices.IDIndexer{},
+						Indexer: id.Indexer{},
 					},
 				},
 			},
