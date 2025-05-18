@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/id"
 )
 
 func TestMemDB_SingleWriter_MultiReader(t *testing.T) {
@@ -56,7 +57,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 	// Add an object
 	obj := testObj()
 	txn := db.Txn(true)
-	require.NoError(t, txn.Insert("main", toReflectValue(obj)))
+	require.NoError(t, txn.Insert(0, toReflectValue(obj)))
 	txn.Commit()
 
 	// Clone the db
@@ -64,12 +65,12 @@ func TestMemDB_Snapshot(t *testing.T) {
 
 	// Remove the object
 	txn = db.Txn(true)
-	require.NoError(t, txn.Delete("main", toReflectValue(obj)))
+	require.NoError(t, txn.Delete(0, toReflectValue(obj)))
 	txn.Commit()
 
 	// Object should exist in second snapshot but not first
 	txn = db.Txn(false)
-	out, err := txn.First("main", "id", obj.ID)
+	out, err := txn.First(0, id.IndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -78,7 +79,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 	}
 
 	txn = db2.Txn(true)
-	out, err = txn.First("main", "id", obj.ID)
+	out, err = txn.First(0, id.IndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

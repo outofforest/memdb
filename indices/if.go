@@ -2,6 +2,7 @@ package indices
 
 import (
 	"reflect"
+	"unsafe"
 
 	"github.com/pkg/errors"
 
@@ -9,34 +10,35 @@ import (
 )
 
 // NewIfIndex creates new conditional index.
-func NewIfIndex[T any](name string, subIndex Index, f func(o *T) bool) *IfIndex[T] {
+func NewIfIndex[T any](subIndex memdb.Index, f func(o *T) bool) *IfIndex[T] {
 	var v T
 	if t := reflect.TypeOf(v); t != subIndex.Type() {
 		panic(errors.Errorf("subindex type mismatch, expected: %s, got: %s", t, subIndex.Type()))
 	}
 
-	return &IfIndex[T]{
-		name:     subIndex.Name() + "," + name,
+	index := &IfIndex[T]{
 		subIndex: subIndex,
 		indexer: ifIndexer[T]{
 			subIndexer: subIndex.Schema().Indexer,
 			f:          f,
 		},
 	}
+	index.id = uint64(uintptr(unsafe.Pointer(index)))
+	return index
 }
 
 var _ memdb.Indexer = ifIndexer[int]{}
 
 // IfIndex indexes those elements from another index for which f returns true.
 type IfIndex[T any] struct {
-	name     string
-	subIndex Index
+	id       uint64
+	subIndex memdb.Index
 	indexer  memdb.Indexer
 }
 
-// Name returns name of the index.
-func (i *IfIndex[T]) Name() string {
-	return i.name
+// ID returns ID of the index.
+func (i *IfIndex[T]) ID() uint64 {
+	return i.id
 }
 
 // Type returns type of entity index is defined for.
@@ -52,7 +54,6 @@ func (i *IfIndex[T]) NumOfArgs() uint64 {
 // Schema returns memdb index schema.
 func (i *IfIndex[T]) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
-		Name:    i.name,
 		Indexer: i.indexer,
 	}
 }

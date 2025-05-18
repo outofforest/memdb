@@ -13,7 +13,7 @@ import (
 )
 
 // NewFieldIndex defines new field index.
-func NewFieldIndex(name string, ePtr, fieldPtr any) *FieldIndex {
+func NewFieldIndex(ePtr, fieldPtr any) *FieldIndex {
 	ePtrType := reflect.TypeOf(ePtr)
 	if ePtrType.Kind() != reflect.Ptr {
 		panic(errors.New("ePtr is not a pointer"))
@@ -47,23 +47,24 @@ func NewFieldIndex(name string, ePtr, fieldPtr any) *FieldIndex {
 		panic(errors.Errorf("unexpected field type %s, expected %s", fieldType, fieldPtrType.Elem()))
 	}
 
-	return &FieldIndex{
-		name:       name,
+	index := &FieldIndex{
 		entityType: ePtrType.Elem(),
 		indexer:    indexer,
 	}
+	index.id = uint64(uintptr(unsafe.Pointer(index)))
+	return index
 }
 
 // FieldIndex defines index indexing entities by struct field.
 type FieldIndex struct {
-	name       string
+	id         uint64
 	entityType reflect.Type
 	indexer    memdb.Indexer
 }
 
-// Name returns name of the index.
-func (i *FieldIndex) Name() string {
-	return i.name
+// ID returns ID of the index.
+func (i *FieldIndex) ID() uint64 {
+	return i.id
 }
 
 // Type returns type of entity index is defined for.
@@ -79,7 +80,6 @@ func (i *FieldIndex) NumOfArgs() uint64 {
 // Schema returns memdb index schema.
 func (i *FieldIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
-		Name:    i.name,
 		Indexer: i.indexer,
 	}
 }

@@ -18,11 +18,11 @@ func TestMultiIndexer(t *testing.T) {
 	requireT := require.New(t)
 	v := &o{}
 
-	index1 := NewFieldIndex("index1", v, &v.Value1)
-	index2 := NewFieldIndex("index2", v, &v.Value4)
+	index1 := NewFieldIndex(v, &v.Value1)
+	index2 := NewFieldIndex(v, &v.Value4)
 
 	index := NewMultiIndex(index1, index2)
-	requireT.Equal("index1,index2", index.Name())
+	requireT.NotZero(index.ID())
 	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
@@ -40,8 +40,8 @@ func TestMultiIndexerNotAllArguments(t *testing.T) {
 	requireT := require.New(t)
 	v := &o{}
 
-	index1 := NewFieldIndex("index1", v, &v.Value1)
-	index2 := NewFieldIndex("index2", v, &v.Value4)
+	index1 := NewFieldIndex(v, &v.Value1)
+	index2 := NewFieldIndex(v, &v.Value4)
 
 	index := NewMultiIndex(index1, index2)
 
@@ -59,13 +59,13 @@ func TestMultiIndexerWithMultiSubIndexer3Arguments(t *testing.T) {
 	requireT := require.New(t)
 	v := &o{}
 
-	index1 := NewFieldIndex("index1", v, &v.Value1)
-	index2 := NewFieldIndex("index2", v, &v.Value4)
-	index3 := NewFieldIndex("index3", v, &v.Value2.Value3)
+	index1 := NewFieldIndex(v, &v.Value1)
+	index2 := NewFieldIndex(v, &v.Value4)
+	index3 := NewFieldIndex(v, &v.Value2.Value3)
 	index4 := NewMultiIndex(index1, index2)
 
 	index := NewMultiIndex(index3, index4)
-	requireT.Equal("index3,index1,index2", index.Name())
+	requireT.NotZero(index.ID())
 	requireT.EqualValues(3, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
@@ -84,9 +84,9 @@ func TestMultiIndexerWithMultiSubIndexer2Arguments(t *testing.T) {
 	requireT := require.New(t)
 	v := &o{}
 
-	index1 := NewFieldIndex("index1", v, &v.Value1)
-	index2 := NewFieldIndex("index2", v, &v.Value4)
-	index3 := NewFieldIndex("index3", v, &v.Value2.Value3)
+	index1 := NewFieldIndex(v, &v.Value1)
+	index2 := NewFieldIndex(v, &v.Value4)
+	index3 := NewFieldIndex(v, &v.Value2.Value3)
 	index4 := NewMultiIndex(index1, index2)
 
 	index := NewMultiIndex(index3, index4)
@@ -105,9 +105,9 @@ func TestMultiIndexerWithMultiSubIndexer1Argument(t *testing.T) {
 	requireT := require.New(t)
 	v := &o{}
 
-	index1 := NewFieldIndex("index1", v, &v.Value1)
-	index2 := NewFieldIndex("index2", v, &v.Value4)
-	index3 := NewFieldIndex("index3", v, &v.Value2.Value3)
+	index1 := NewFieldIndex(v, &v.Value1)
+	index2 := NewFieldIndex(v, &v.Value4)
+	index3 := NewFieldIndex(v, &v.Value2.Value3)
 	index4 := NewMultiIndex(index1, index2)
 
 	index := NewMultiIndex(index3, index4)
@@ -127,12 +127,12 @@ func TestMultiIndexerWithIfSubindex(t *testing.T) {
 	requireT := require.New(t)
 	v := &o{}
 
-	index1 := NewFieldIndex("index1", v, &v.Value1)
-	index2 := NewFieldIndex("index2", v, &v.Value4)
-	index3 := NewIfIndex("if", index2, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 2, Value4: xyz}))
+	index1 := NewFieldIndex(v, &v.Value1)
+	index2 := NewFieldIndex(v, &v.Value4)
+	index3 := NewIfIndex(index2, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 2, Value4: xyz}))
 
 	index := NewMultiIndex(index1, index3)
-	requireT.Equal("index1,index2,if", index.Name())
+	requireT.NotZero(index.ID())
 	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
@@ -169,8 +169,8 @@ func TestMultiErrorOnTypeMismatch(t *testing.T) {
 	v1 := &o{}
 	v2 := &subO1{}
 
-	index1 := NewFieldIndex("index1", v1, &v1.Value1)
-	index2 := NewFieldIndex("index2", v2, &v2.Value3)
+	index1 := NewFieldIndex(v1, &v1.Value1)
+	index2 := NewFieldIndex(v2, &v2.Value3)
 
 	requireT.Panics(func() {
 		NewMultiIndex(index1, index2)

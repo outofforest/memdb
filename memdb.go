@@ -29,7 +29,7 @@ import (
 // even after they've been deleted from MemDB since there may still be older
 // snapshots of the DB being read from other goroutines.
 type MemDB struct {
-	schema *DBSchema
+	schema DBSchema
 	root   unsafe.Pointer // *iradix.Tree underneath
 
 	// There can only be a single writer at once
@@ -37,26 +37,30 @@ type MemDB struct {
 }
 
 // NewMemDB creates a new MemDB with the given schema.
-func NewMemDB(schema *DBSchema) (*MemDB, error) {
+func NewMemDB(indexes [][]Index) (*MemDB, error) {
+	schema := make(DBSchema, 0, len(indexes))
+
 	var indexID uint64
 	var indexIDBytes [8]byte
-	for _, t := range schema.Tables {
-		if t.Indexes == nil {
-			t.Indexes = map[string]*IndexSchema{}
-		}
-		t.Indexes[idIndexName] = &IndexSchema{
-			Name:    idIndexName,
+	for _, tableIndexes := range indexes {
+		t := TableSchema{}
+		schema = append(schema, t)
+
+		t[id.IndexID] = &IndexSchema{
 			Unique:  true,
 			Indexer: id.Indexer{},
 		}
 
-		for _, i := range t.Indexes {
+		for _, index := range tableIndexes {
+			indexSchema := index.Schema()
+			t[index.ID()] = indexSchema
+
 			indexID++
 			binary.BigEndian.PutUint64(indexIDBytes[:], indexID)
 			for j, b := range indexIDBytes {
 				if b != 0 {
-					i.id = make([]byte, len(indexIDBytes[j:]))
-					copy(i.id, indexIDBytes[j:])
+					indexSchema.id = make([]byte, len(indexIDBytes[j:]))
+					copy(indexSchema.id, indexIDBytes[j:])
 					break
 				}
 			}
@@ -81,7 +85,7 @@ func NewMemDB(schema *DBSchema) (*MemDB, error) {
 //
 // The method is intended for *read-only* debugging use cases,
 // returned schema should *never be modified in-place*.
-func (db *MemDB) DBSchema() *DBSchema {
+func (db *MemDB) DBSchema() DBSchema {
 	return db.schema
 }
 
@@ -122,8 +126,8 @@ func (db *MemDB) Snapshot() *MemDB {
 // be called only once after allocating a MemDB.
 func (db *MemDB) initialize() {
 	txn := iradix.NewTxn(db.getRoot())
-	for _, tableSchema := range db.schema.Tables {
-		for _, i := range tableSchema.Indexes {
+	for _, tableSchema := range db.schema {
+		for _, i := range tableSchema {
 			index := iradix.New()
 			txn.Insert(i.id, index)
 		}
