@@ -1,15 +1,19 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package memdb
+package memdb_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/outofforest/go-memdb"
 )
 
 func TestMemDB_SingleWriter_MultiReader(t *testing.T) {
-	db, err := NewMemDB(testValidSchema())
+	db, err := memdb.NewMemDB(testValidSchema())
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -44,7 +48,7 @@ func TestMemDB_SingleWriter_MultiReader(t *testing.T) {
 }
 
 func TestMemDB_Snapshot(t *testing.T) {
-	db, err := NewMemDB(testValidSchema())
+	db, err := memdb.NewMemDB(testValidSchema())
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -52,7 +56,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 	// Add an object
 	obj := testObj()
 	txn := db.Txn(true)
-	txn.Insert("main", obj)
+	require.NoError(t, txn.Insert("main", toReflectValue(obj)))
 	txn.Commit()
 
 	// Clone the db
@@ -60,7 +64,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 
 	// Remove the object
 	txn = db.Txn(true)
-	txn.Delete("main", obj)
+	require.NoError(t, txn.Delete("main", toReflectValue(obj)))
 	txn.Commit()
 
 	// Object should exist in second snapshot but not first

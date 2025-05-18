@@ -1,44 +1,43 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package memdb
+package memdb_test
 
 import (
 	"reflect"
 	"testing"
-	"time"
+
+	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/go-memdb/indices"
 )
 
-// Test that multiple concurrent transactions are isolated from each other
+// Test that multiple concurrent transactions are isolated from each other.
 func TestTxn_Isolation(t *testing.T) {
 	db := testDB(t)
 	txn1 := db.Txn(true)
 
 	obj := &TestObject{
-		ID:  "my-object",
+		ID:  memdb.ID{1},
 		Foo: "abc",
-		Qux: []string{"abc1", "abc2"},
 	}
 	obj2 := &TestObject{
-		ID:  "my-cool-thing",
+		ID:  memdb.ID{2},
 		Foo: "xyz",
-		Qux: []string{"xyz1", "xyz2"},
 	}
 	obj3 := &TestObject{
-		ID:  "my-other-cool-thing",
+		ID:  memdb.ID{3},
 		Foo: "xyz",
-		Qux: []string{"xyz1", "xyz2"},
 	}
 
-	err := txn1.Insert("main", obj)
+	err := txn1.Insert("main", toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", obj2)
+	err = txn1.Insert("main", toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", obj3)
+	err = txn1.Insert("main", toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -89,36 +88,33 @@ func TestTxn_Isolation(t *testing.T) {
 	}
 }
 
-// Test that an abort clears progress
+// Test that an abort clears progress.
 func TestTxn_Abort(t *testing.T) {
 	db := testDB(t)
 	txn1 := db.Txn(true)
 
 	obj := &TestObject{
-		ID:  "my-object",
+		ID:  memdb.ID{1},
 		Foo: "abc",
-		Qux: []string{"abc1", "abc2"},
 	}
 	obj2 := &TestObject{
-		ID:  "my-cool-thing",
+		ID:  memdb.ID{2},
 		Foo: "xyz",
-		Qux: []string{"xyz1", "xyz2"},
 	}
 	obj3 := &TestObject{
-		ID:  "my-other-cool-thing",
+		ID:  memdb.ID{3},
 		Foo: "xyz",
-		Qux: []string{"xyz1", "xyz2"},
 	}
 
-	err := txn1.Insert("main", obj)
+	err := txn1.Insert("main", toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", obj2)
+	err = txn1.Insert("main", toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert("main", obj3)
+	err = txn1.Insert("main", toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -152,209 +148,77 @@ func TestComplexDB(t *testing.T) {
 		t.Fatalf("should get person")
 	}
 
-	// Get using a prefix
-	raw, err = txn.First("people", "name_prefix", "Armon")
+	raw, err = txn.First("people", "age", uint8(27))
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
-	raw, err = txn.First("people", "id_prefix", raw.(*TestPerson).ID[:4])
+	raw, err = txn.First("people", "negative_age", int8(-26))
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
-	// Get based on field set.
-	result, err := txn.Get("people", "sibling", true)
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get person")
-	}
-
-	exp := map[string]bool{"Alex": true, "Armon": true}
-	act := make(map[string]bool, 2)
-	for i := result.Next(); i != nil; i = result.Next() {
-		p, ok := i.(*TestPerson)
-		if !ok {
-			t.Fatalf("should get person")
-		}
-		act[p.First] = true
-	}
-
-	if !reflect.DeepEqual(act, exp) {
-		t.Fatalf("Got %#v; want %#v", act, exp)
-	}
-
-	raw, err = txn.First("people", "sibling", false)
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get person")
-	}
-	if raw.(*TestPerson).First != "Mitchell" {
-		t.Fatalf("wrong person!")
-	}
-
-	raw, err = txn.First("people", "age", uint8(23))
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get person")
-	}
-
-	raw, err = txn.First("people", "negative_age", int8(-23))
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get person")
-	}
-
-	person := raw.(*TestPerson)
-	if person.First != "Alex" {
+	person := fromReflectValue[TestPerson](raw)
+	if person.First != "Armon" {
 		t.Fatalf("wrong person!")
 	}
 
 	// Where in the world is mitchell hashimoto?
-	raw, err = txn.First("people", "name_prefix", "Mitchell")
+	raw, err = txn.First("people", "name", "Mitchell")
 	noErr(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
-	person = raw.(*TestPerson)
+	person = fromReflectValue[TestPerson](raw)
 	if person.First != "Mitchell" {
 		t.Fatalf("wrong person!")
 	}
-
-	raw, err = txn.First("visits", "id_prefix", person.ID)
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get visit")
-	}
-
-	visit := raw.(*TestVisit)
-
-	raw, err = txn.First("places", "id", visit.Place)
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get place")
-	}
-
-	place := raw.(*TestPlace)
-	if place.Name != "Maui" {
-		t.Fatalf("bad place (but isn't anywhere else really?): %v", place)
-	}
-
-	raw, err = txn.First("places", "name_tags", "HashiCorp", "North America")
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get place")
-	}
-	place = raw.(*TestPlace)
-	if place.Name != "HashiCorp" {
-		t.Fatalf("bad place (but isn't anywhere else really?): %v", place)
-	}
-
-	raw, err = txn.First("places", "name_tags", "Maui")
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get place")
-	}
-	place = raw.(*TestPlace)
-	if place.Name != "Maui" {
-		t.Fatalf("bad place (but isn't anywhere else really?): %v", place)
-	}
-
-	raw, err = txn.First("places", "name_tags_name_meta", "HashiCorp", "North America", "HashiCorp", "Food", "Pretty Good")
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get place")
-	}
-	place = raw.(*TestPlace)
-	if place.Tags[1] != "USA" {
-		t.Fatalf("bad place: %v", place)
-	}
-
-	raw, err = txn.First("places", "name_tags_name_meta", "HashiCorp", "North America", "HashiCorp", "Piers", "Pretty Salty")
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get place")
-	}
-	place = raw.(*TestPlace)
-	if place.Tags[1] != "Earth" {
-		t.Fatalf("bad place: %v", place)
-	}
 }
 
-func TestWatchUpdate(t *testing.T) {
-	db := testComplexDB(t)
-	testPopulateData(t, db)
-	txn := db.Txn(false) // read only
-
-	watchSetIter := NewWatchSet()
-	watchSetSpecific := NewWatchSet()
-	watchSetPrefix := NewWatchSet()
-
-	// Get using an iterator.
-	iter, err := txn.Get("people", "name", "Armon", "Dadgar")
-	noErr(t, err)
-	watchSetIter.Add(iter.WatchCh())
-	if raw := iter.Next(); raw == nil {
-		t.Fatalf("should get person")
-	}
-
-	// Get using a full name.
-	watch, raw, err := txn.FirstWatch("people", "name", "Armon", "Dadgar")
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get person")
-	}
-	watchSetSpecific.Add(watch)
-
-	// Get using a prefix.
-	watch, raw, err = txn.FirstWatch("people", "name_prefix", "Armon")
-	noErr(t, err)
-	if raw == nil {
-		t.Fatalf("should get person")
-	}
-	watchSetPrefix.Add(watch)
-
-	// Write to a snapshot.
-	snap := db.Snapshot()
-	txn2 := snap.Txn(true) // write
-	noErr(t, txn2.Delete("people", raw))
-	txn2.Commit()
-
-	// None of the watches should trigger since we didn't alter the
-	// primary.
-	wait := 100 * time.Millisecond
-	if timeout := watchSetIter.Watch(time.After(wait)); !timeout {
-		t.Fatalf("should timeout")
-	}
-	if timeout := watchSetSpecific.Watch(time.After(wait)); !timeout {
-		t.Fatalf("should timeout")
-	}
-	if timeout := watchSetPrefix.Watch(time.After(wait)); !timeout {
-		t.Fatalf("should timeout")
-	}
-
-	// Write to the primary.
-	txn3 := db.Txn(true) // write
-	noErr(t, txn3.Delete("people", raw))
-	txn3.Commit()
-
-	// All three watches should trigger!
-	wait = time.Second
-	if timeout := watchSetIter.Watch(time.After(wait)); timeout {
-		t.Fatalf("should not timeout")
-	}
-	if timeout := watchSetSpecific.Watch(time.After(wait)); timeout {
-		t.Fatalf("should not timeout")
-	}
-	if timeout := watchSetPrefix.Watch(time.After(wait)); timeout {
-		t.Fatalf("should not timeout")
-	}
+type TestObject struct {
+	ID     memdb.ID
+	Foo    string
+	Baz    string
+	Empty  string
+	Int8   int8
+	Int16  int16
+	Int32  int32
+	Int64  int64
+	Uint   uint
+	Uint8  uint8
+	Uint16 uint16
+	Uint32 uint32
+	Uint64 uint64
+	Bool   bool
 }
 
-func testPopulateData(t *testing.T, db *MemDB) {
+func String(s string) *string {
+	return &s
+}
+
+func testObj() *TestObject {
+	obj := &TestObject{
+		ID:     memdb.ID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		Foo:    "Testing",
+		Baz:    "yep",
+		Int8:   int8(-1 << 7),
+		Int16:  int16(-1 << 15),
+		Int32:  int32(-1 << 31),
+		Int64:  int64(-1 << 63),
+		Uint:   uint(1),
+		Uint8:  uint8(1<<8 - 1),
+		Uint16: uint16(1<<16 - 1),
+		Uint32: uint32(1<<32 - 1),
+		Uint64: uint64(1<<64 - 1),
+		Bool:   false,
+	}
+	return obj
+}
+
+func testPopulateData(t *testing.T, db *memdb.MemDB) {
 	// Start write txn
 	txn := db.Txn(true)
 
@@ -367,46 +231,25 @@ func testPopulateData(t *testing.T, db *MemDB) {
 	person2.Age = 27
 	person2.NegativeAge = -27
 
-	person3 := testPerson()
-	person3.First = "Alex"
-	person3.Last = "Dadgar"
-	person3.Age = 23
-	person3.NegativeAge = -23
-
-	person1.Sibling = person3
-	person3.Sibling = person1
-
 	place1 := testPlace()
-	place1.Tags = []string{"North America", "USA"}
-	place1.Meta = map[string]string{"Food": "Pretty Good"}
 	place2 := testPlace()
 	place2.Name = "Maui"
 	place3 := testPlace()
-	place3.Tags = []string{"North America", "Earth"}
-	place3.Meta = map[string]string{"Piers": "Pretty Salty"}
 
-	visit1 := &TestVisit{person1.ID, place1.ID}
-	visit2 := &TestVisit{person2.ID, place2.ID}
+	visit1 := testVisit(person1.ID, place1.ID)
+	visit2 := testVisit(person2.ID, place2.ID)
 
 	// Insert it all
-	noErr(t, txn.Insert("people", person1))
-	noErr(t, txn.Insert("people", person2))
-	noErr(t, txn.Insert("people", person3))
-	noErr(t, txn.Insert("places", place1))
-	noErr(t, txn.Insert("places", place2))
-	noErr(t, txn.Insert("places", place3))
-	noErr(t, txn.Insert("visits", visit1))
-	noErr(t, txn.Insert("visits", visit2))
+	noErr(t, txn.Insert("people", toReflectValue(person1)))
+	noErr(t, txn.Insert("people", toReflectValue(person2)))
+	noErr(t, txn.Insert("places", toReflectValue(place1)))
+	noErr(t, txn.Insert("places", toReflectValue(place2)))
+	noErr(t, txn.Insert("places", toReflectValue(place3)))
+	noErr(t, txn.Insert("visits", toReflectValue(visit1)))
+	noErr(t, txn.Insert("visits", toReflectValue(visit2)))
 
 	// Commit
 	txn.Commit()
-}
-
-func expectErr(t *testing.T, err error) {
-	t.Helper()
-	if err == nil {
-		t.Fatal("expected error")
-	}
 }
 
 func noErr(t *testing.T, err error) {
@@ -417,117 +260,71 @@ func noErr(t *testing.T, err error) {
 }
 
 type TestPerson struct {
-	ID          string
+	ID          memdb.ID
 	First       string
 	Last        string
 	Age         uint8
 	NegativeAge int8
-	Sibling     *TestPerson
 }
 
 type TestPlace struct {
-	ID   string
+	ID   memdb.ID
 	Name string
-	Tags []string
-	Meta map[string]string
 }
 
 type TestVisit struct {
-	Person string
-	Place  string
+	ID     memdb.ID
+	Person memdb.ID
+	Place  memdb.ID
 }
 
-func testComplexSchema() *DBSchema {
-	return &DBSchema{
-		Tables: map[string]*TableSchema{
-			"people": &TableSchema{
+func testComplexSchema() *memdb.DBSchema {
+	var person TestPerson
+	personNameIndex := indices.NewMultiIndex(
+		indices.NewFieldIndex("first", &person, &person.First),
+		indices.NewFieldIndex("last", &person, &person.Last),
+	)
+	personNameSchema := personNameIndex.Schema()
+	personNameSchema.Name = "name"
+	personAgeIndex := indices.NewFieldIndex("age", &person, &person.Age)
+	personNegativeAgeIndex := indices.NewFieldIndex("negative_age", &person, &person.NegativeAge)
+
+	var place TestPlace
+	placeNameIndex := indices.NewFieldIndex("name", &place, &place.Name)
+
+	return &memdb.DBSchema{
+		Tables: map[string]*memdb.TableSchema{
+			"people": {
 				Name: "people",
-				Indexes: map[string]*IndexSchema{
-					"id": &IndexSchema{
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: &UUIDFieldIndex{Field: "ID"},
+						Indexer: indices.IDIndexer{},
 					},
-					"name": &IndexSchema{
-						Name:   "name",
-						Unique: true,
-						Indexer: &CompoundIndex{
-							Indexes: []Indexer{
-								&StringFieldIndex{Field: "First"},
-								&StringFieldIndex{Field: "Last"},
-							},
-						},
-					},
-					"age": &IndexSchema{
-						Name:    "age",
-						Unique:  false,
-						Indexer: &UintFieldIndex{Field: "Age"},
-					},
-					"negative_age": &IndexSchema{
-						Name:    "negative_age",
-						Unique:  false,
-						Indexer: &IntFieldIndex{Field: "NegativeAge"},
-					},
-					"sibling": &IndexSchema{
-						Name:    "sibling",
-						Unique:  false,
-						Indexer: &FieldSetIndex{Field: "Sibling"},
-					},
+					personNameSchema.Name:         personNameSchema,
+					personAgeIndex.Name():         personAgeIndex.Schema(),
+					personNegativeAgeIndex.Name(): personNegativeAgeIndex.Schema(),
 				},
 			},
-			"places": &TableSchema{
+			"places": {
 				Name: "places",
-				Indexes: map[string]*IndexSchema{
-					"id": &IndexSchema{
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
-						Indexer: &UUIDFieldIndex{Field: "ID"},
+						Indexer: indices.IDIndexer{},
 					},
-					"name": &IndexSchema{
-						Name:    "name",
-						Unique:  true,
-						Indexer: &StringFieldIndex{Field: "Name"},
-					},
-					"name_tags": &IndexSchema{
-						Name:         "name_tags",
-						Unique:       true,
-						AllowMissing: true,
-						Indexer: &CompoundMultiIndex{
-							AllowMissing: true,
-							Indexes: []Indexer{
-								&StringFieldIndex{Field: "Name"},
-								&StringSliceFieldIndex{Field: "Tags"},
-							},
-						},
-					},
-					"name_tags_name_meta": &IndexSchema{
-						Name:         "name_tags_name_meta",
-						Unique:       true,
-						AllowMissing: true,
-						Indexer: &CompoundMultiIndex{
-							AllowMissing: true,
-							Indexes: []Indexer{
-								&StringFieldIndex{Field: "Name"},
-								&StringSliceFieldIndex{Field: "Tags"},
-								&StringFieldIndex{Field: "Name"},
-								&StringMapFieldIndex{Field: "Meta"},
-							},
-						},
-					},
+					placeNameIndex.Name(): placeNameIndex.Schema(),
 				},
 			},
-			"visits": &TableSchema{
+			"visits": {
 				Name: "visits",
-				Indexes: map[string]*IndexSchema{
-					"id": &IndexSchema{
-						Name:   "id",
-						Unique: true,
-						Indexer: &CompoundIndex{
-							Indexes: []Indexer{
-								&UUIDFieldIndex{Field: "Person"},
-								&UUIDFieldIndex{Field: "Place"},
-							},
-						},
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": {
+						Name:    "id",
+						Unique:  true,
+						Indexer: indices.IDIndexer{},
 					},
 				},
 			},
@@ -535,31 +332,49 @@ func testComplexSchema() *DBSchema {
 	}
 }
 
-func testComplexDB(t *testing.T) *MemDB {
-	db, err := NewMemDB(testComplexSchema())
+func testComplexDB(t *testing.T) *memdb.MemDB {
+	db, err := memdb.NewMemDB(testComplexSchema())
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	return db
 }
 
-func testPerson() *TestPerson {
-	_, uuid := generateUUID()
-	obj := &TestPerson{
-		ID:          uuid,
+func testPerson() TestPerson {
+	return TestPerson{
+		ID:          memdb.NewID[memdb.ID](),
 		First:       "Armon",
 		Last:        "Dadgar",
 		Age:         26,
 		NegativeAge: -26,
 	}
-	return obj
 }
 
-func testPlace() *TestPlace {
-	_, uuid := generateUUID()
-	obj := &TestPlace{
-		ID:   uuid,
+func testPlace() TestPlace {
+	return TestPlace{
+		ID:   memdb.NewID[memdb.ID](),
 		Name: "HashiCorp",
 	}
-	return obj
+}
+
+func testVisit(personID, placeID memdb.ID) TestVisit {
+	return TestVisit{
+		ID:     memdb.NewID[memdb.ID](),
+		Person: personID,
+		Place:  placeID,
+	}
+}
+
+func toReflectValue(obj any) reflect.Value {
+	v := reflect.ValueOf(obj)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	v2 := reflect.New(v.Type())
+	v2.Elem().Set(v)
+	return v2
+}
+
+func fromReflectValue[T any](v any) T {
+	return v.(reflect.Value).Elem().Interface().(T)
 }

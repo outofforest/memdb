@@ -1,44 +1,24 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package memdb
+package memdb_test
 
-import "testing"
+import (
+	"testing"
 
-func testValidSchema() *DBSchema {
-	return &DBSchema{
-		Tables: map[string]*TableSchema{
-			"main": &TableSchema{
-				Name: "main",
-				Indexes: map[string]*IndexSchema{
-					"id": &IndexSchema{
-						Name:    "id",
-						Unique:  true,
-						Indexer: &StringFieldIndex{Field: "ID"},
-					},
-					"foo": &IndexSchema{
-						Name:    "foo",
-						Indexer: &StringFieldIndex{Field: "Foo"},
-					},
-					"qux": &IndexSchema{
-						Name:    "qux",
-						Indexer: &StringSliceFieldIndex{Field: "Qux"},
-					},
-				},
-			},
-		},
-	}
-}
+	"github.com/outofforest/go-memdb"
+	"github.com/outofforest/go-memdb/indices"
+)
 
 func TestDBSchema_Validate(t *testing.T) {
-	s := &DBSchema{}
+	s := &memdb.DBSchema{}
 	err := s.Validate()
 	if err == nil {
 		t.Fatalf("should not validate, empty")
 	}
 
-	s.Tables = map[string]*TableSchema{
-		"foo": &TableSchema{Name: "foo"},
+	s.Tables = map[string]*memdb.TableSchema{
+		"foo": {Name: "foo"},
 	}
 	err = s.Validate()
 	if err == nil {
@@ -53,27 +33,27 @@ func TestDBSchema_Validate(t *testing.T) {
 }
 
 func TestTableSchema_Validate(t *testing.T) {
-	s := &TableSchema{}
+	s := &memdb.TableSchema{}
 	err := s.Validate()
 	if err == nil {
 		t.Fatalf("should not validate, empty")
 	}
 
-	s.Indexes = map[string]*IndexSchema{
-		"foo": &IndexSchema{Name: "foo"},
+	s.Indexes = map[string]*memdb.IndexSchema{
+		"foo": {Name: "foo"},
 	}
 	err = s.Validate()
 	if err == nil {
 		t.Fatalf("should not validate, no indexes")
 	}
 
-	valid := &TableSchema{
+	valid := &memdb.TableSchema{
 		Name: "main",
-		Indexes: map[string]*IndexSchema{
-			"id": &IndexSchema{
+		Indexes: map[string]*memdb.IndexSchema{
+			"id": {
 				Name:    "id",
 				Unique:  true,
-				Indexer: &StringFieldIndex{Field: "ID", Lowercase: true},
+				Indexer: indices.IDIndexer{},
 			},
 		},
 	}
@@ -84,7 +64,7 @@ func TestTableSchema_Validate(t *testing.T) {
 }
 
 func TestIndexSchema_Validate(t *testing.T) {
-	s := &IndexSchema{}
+	s := &memdb.IndexSchema{}
 	err := s.Validate()
 	if err == nil {
 		t.Fatalf("should not validate, empty")
@@ -96,15 +76,30 @@ func TestIndexSchema_Validate(t *testing.T) {
 		t.Fatalf("should not validate, no indexer")
 	}
 
-	s.Indexer = &StringFieldIndex{Field: "Foo", Lowercase: false}
+	s.Indexer = indices.IDIndexer{}
 	err = s.Validate()
 	if err != nil {
 		t.Fatalf("should validate: %v", err)
 	}
+}
 
-	s.Indexer = &StringSliceFieldIndex{Field: "Qux", Lowercase: false}
-	err = s.Validate()
-	if err != nil {
-		t.Fatalf("should validate: %v", err)
+func testValidSchema() *memdb.DBSchema {
+	var o TestObject
+	indexFoo := indices.NewFieldIndex("foo", &o, &o.Foo)
+
+	return &memdb.DBSchema{
+		Tables: map[string]*memdb.TableSchema{
+			"main": {
+				Name: "main",
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": {
+						Name:    "id",
+						Unique:  true,
+						Indexer: indices.IDIndexer{},
+					},
+					indexFoo.Name(): indexFoo.Schema(),
+				},
+			},
+		},
 	}
 }
