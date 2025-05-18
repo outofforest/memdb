@@ -244,7 +244,7 @@ func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) 
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(&indexSchema.id)
+	indexTxn := txn.readableIndex(&indexSchema.id, false)
 
 	// Do an exact lookup
 	if indexSchema.Unique && val != nil {
@@ -278,7 +278,7 @@ func (txn *Txn) Last(table, index uint64, args ...any) (*reflect.Value, error) {
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(&indexSchema.id)
+	indexTxn := txn.readableIndex(&indexSchema.id, false)
 
 	// Do an exact lookup
 	if indexSchema.Unique && val != nil {
@@ -355,12 +355,14 @@ func (txn *Txn) GetReverse(table, index uint64, args ...any) (ResultIterator, er
 // readableIndex returns a transaction usable for reading the given index in a
 // table. If the transaction is a write transaction with modifications, a clone of the
 // modified index will be returned.
-func (txn *Txn) readableIndex(indexID *[]byte) *iradix.Txn {
+func (txn *Txn) readableIndex(indexID *[]byte, clone bool) *iradix.Txn {
 	// Look for existing transaction
 	if txn.write && txn.modified != nil {
-		exist, ok := txn.modified[indexID]
-		if ok {
-			return exist.Clone()
+		if exist, ok := txn.modified[indexID]; ok {
+			if clone {
+				return exist.Clone()
+			}
+			return exist
 		}
 	}
 
@@ -432,7 +434,7 @@ func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iter
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(&indexSchema.id)
+	indexTxn := txn.readableIndex(&indexSchema.id, true)
 	indexRoot := indexTxn.Root()
 
 	// Get an iterator over the index
@@ -448,7 +450,7 @@ func (txn *Txn) getIndexIteratorReverse(table, index uint64, args ...any) (*irad
 	}
 
 	// Get the index itself
-	indexTxn := txn.readableIndex(&indexSchema.id)
+	indexTxn := txn.readableIndex(&indexSchema.id, true)
 	indexRoot := indexTxn.Root()
 
 	// Get an interator over the index
