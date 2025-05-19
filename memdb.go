@@ -107,20 +107,22 @@ func (db *MemDB) Txn(write bool) *Txn {
 	}
 }
 
+// AwaitTxn waits until pending transaction (if any) is finished.
+func (db *MemDB) AwaitTxn() {
+	db.writer.Lock()
+	db.writer.Unlock() //nolint:staticcheck
+}
+
 // Snapshot is used to capture a point-in-time snapshot of the database that
 // will not be affected by any write operations to the existing DB.
-// Before taking the snapshot we wait for currently running tx (if any) to finish to return an up-to-date state.
 //
 // If MemDB is storing reference-based values (pointers, maps, slices, etc.),
 // the Snapshot will not deep copy those values. Therefore, it is still unsafe
 // to modify any inserted values in either DB.
 func (db *MemDB) Snapshot() *MemDB {
-	db.writer.Lock()
-	defer db.writer.Unlock()
-
 	return &MemDB{
 		schema: db.schema,
-		root:   db.root, // We lock the mutex so atomic.LoadPointer is not needed.
+		root:   unsafe.Pointer(db.getRoot()),
 	}
 }
 
