@@ -100,26 +100,28 @@ func (db *MemDB) Txn(write bool) *Txn {
 	if write {
 		db.writer.Lock()
 	}
-	txn := &Txn{
+	return &Txn{
 		db:      db,
 		write:   write,
 		rootTxn: iradix.NewTxn(db.getRoot()),
 	}
-	return txn
 }
 
-// Snapshot is used to capture a point-in-time snapshot  of the database that
+// Snapshot is used to capture a point-in-time snapshot of the database that
 // will not be affected by any write operations to the existing DB.
+// Before taking the snapshot we wait for currently running tx (if any) to finish to return an up-to-date state.
 //
 // If MemDB is storing reference-based values (pointers, maps, slices, etc.),
 // the Snapshot will not deep copy those values. Therefore, it is still unsafe
 // to modify any inserted values in either DB.
 func (db *MemDB) Snapshot() *MemDB {
-	clone := &MemDB{
+	db.writer.Lock()
+	defer db.writer.Unlock()
+
+	return &MemDB{
 		schema: db.schema,
-		root:   unsafe.Pointer(db.getRoot()),
+		root:   db.root, // We lock the mutex so atomic.LoadPointer is not needed.
 	}
-	return clone
 }
 
 // initialize is used to setup the DB for use after creation. This should
