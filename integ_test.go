@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outofforest/memdb"
 	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/indices"
@@ -30,18 +32,23 @@ func TestTxn_Isolation(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn1.Insert(0, toReflectValue(obj))
+	oldV, err := txn1.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert(0, toReflectValue(obj2))
+	require.Nil(t, oldV)
+
+	oldV, err = txn1.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert(0, toReflectValue(obj3))
+	require.Nil(t, oldV)
+
+	oldV, err = txn1.Insert(0, toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+	require.Nil(t, oldV)
 
 	// Results should show up in this transaction
 	raw, err := txn1.First(0, id.IndexID)
@@ -107,18 +114,23 @@ func TestTxn_Abort(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	err := txn1.Insert(0, toReflectValue(obj))
+	oldV, err := txn1.Insert(0, toReflectValue(obj))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert(0, toReflectValue(obj2))
+	require.Nil(t, oldV)
+
+	oldV, err = txn1.Insert(0, toReflectValue(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	err = txn1.Insert(0, toReflectValue(obj3))
+	require.Nil(t, oldV)
+
+	oldV, err = txn1.Insert(0, toReflectValue(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
+	require.Nil(t, oldV)
 
 	// Abort the txn
 	txn1.Abort()
@@ -144,19 +156,19 @@ func TestComplexDB(t *testing.T) {
 
 	// Get using a full name
 	raw, err := txn.First(peopleTableID, personNameIndex.ID(), "Armon", "Dadgar")
-	noErr(t, err)
+	require.NoError(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
 	raw, err = txn.First(peopleTableID, personAgeIndex.ID(), uint8(27))
-	noErr(t, err)
+	require.NoError(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
 
 	raw, err = txn.First(peopleTableID, personNegativeAgeIndex.ID(), int8(-26))
-	noErr(t, err)
+	require.NoError(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
@@ -168,7 +180,7 @@ func TestComplexDB(t *testing.T) {
 
 	// Where in the world is mitchell hashimoto?
 	raw, err = txn.First(peopleTableID, personNameIndex.ID(), "Mitchell")
-	noErr(t, err)
+	require.NoError(t, err)
 	if raw == nil {
 		t.Fatalf("should get person")
 	}
@@ -241,23 +253,36 @@ func testPopulateData(t *testing.T, db *memdb.MemDB) {
 	visit2 := testVisit(person2.ID, place2.ID)
 
 	// Insert it all
-	noErr(t, txn.Insert(peopleTableID, toReflectValue(person1)))
-	noErr(t, txn.Insert(peopleTableID, toReflectValue(person2)))
-	noErr(t, txn.Insert(placesTableID, toReflectValue(place1)))
-	noErr(t, txn.Insert(placesTableID, toReflectValue(place2)))
-	noErr(t, txn.Insert(placesTableID, toReflectValue(place3)))
-	noErr(t, txn.Insert(visitsTableID, toReflectValue(visit1)))
-	noErr(t, txn.Insert(visitsTableID, toReflectValue(visit2)))
+	oldV, err := txn.Insert(peopleTableID, toReflectValue(person1))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn.Insert(peopleTableID, toReflectValue(person2))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn.Insert(placesTableID, toReflectValue(place1))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn.Insert(placesTableID, toReflectValue(place2))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn.Insert(placesTableID, toReflectValue(place3))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn.Insert(visitsTableID, toReflectValue(visit1))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn.Insert(visitsTableID, toReflectValue(visit2))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
 
 	// Commit
 	txn.Commit()
-}
-
-func noErr(t *testing.T, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
 }
 
 type TestPerson struct {
@@ -355,6 +380,6 @@ func toReflectValue(obj any) *reflect.Value {
 	return &v2
 }
 
-func fromReflectValue[T any](v any) T {
-	return v.(*reflect.Value).Elem().Interface().(T)
+func fromReflectValue[T any](v *reflect.Value) T {
+	return v.Elem().Interface().(T)
 }
