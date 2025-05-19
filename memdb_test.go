@@ -57,7 +57,9 @@ func TestMemDB_Snapshot(t *testing.T) {
 	// Add an object
 	obj := testObj()
 	txn := db.Txn(true)
-	require.NoError(t, txn.Insert(0, toReflectValue(obj)))
+	oldV, err := txn.Insert(0, toReflectValue(obj))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
 	txn.Commit()
 
 	// Clone the db
@@ -65,7 +67,9 @@ func TestMemDB_Snapshot(t *testing.T) {
 
 	// Remove the object
 	txn = db.Txn(true)
-	require.NoError(t, txn.Delete(0, toReflectValue(obj)))
+	oldV, err = txn.Delete(0, toReflectValue(obj))
+	require.NoError(t, err)
+	require.Equal(t, *obj, fromReflectValue[TestObject](oldV))
 	txn.Commit()
 
 	// Object should exist in second snapshot but not first

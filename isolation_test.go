@@ -7,6 +7,8 @@ package memdb_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outofforest/memdb"
 	"github.com/outofforest/memdb/id"
 )
@@ -16,11 +18,11 @@ func TestMemDB_Isolation(t *testing.T) {
 	id2 := memdb.ID{2}
 	id3 := memdb.ID{3}
 
-	mustNoError := func(t *testing.T, err error) {
-		if err != nil {
-			t.Fatalf("unexpected test error: %v", err)
-		}
-	}
+	obj1a := testObj()
+	obj1a.ID = id1
+
+	obj3 := testObj()
+	obj3.ID = id3
 
 	setup := func(t *testing.T) *memdb.MemDB {
 		t.Helper()
@@ -31,14 +33,14 @@ func TestMemDB_Isolation(t *testing.T) {
 		}
 
 		// Add two objects (with a gap between their IDs)
-		obj1a := testObj()
-		obj1a.ID = id1
 		txn := db.Txn(true)
-		mustNoError(t, txn.Insert(0, toReflectValue(obj1a)))
+		oldV, err := txn.Insert(0, toReflectValue(obj1a))
+		require.NoError(t, err)
+		require.Nil(t, oldV)
 
-		obj3 := testObj()
-		obj3.ID = id3
-		mustNoError(t, txn.Insert(0, toReflectValue(obj3)))
+		oldV, err = txn.Insert(0, toReflectValue(obj3))
+		require.NoError(t, err)
+		require.Nil(t, oldV)
 		txn.Commit()
 		return db
 	}
@@ -52,16 +54,20 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
+		oldV, err := txn1.Insert(0, toReflectValue(obj1b))
+		require.NoError(t, err)
+		require.Equal(t, *obj1a, fromReflectValue[TestObject](oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
+		oldV, err = txn1.Insert(0, toReflectValue(obj2))
+		require.NoError(t, err)
+		require.Nil(t, oldV)
 
 		txn2 := db2.Txn(false)
 		out, err := txn2.First(0, id.IndexID, id1)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
 		}
@@ -70,7 +76,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		}
 
 		out, err = txn2.First(0, id.IndexID, id2)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe uncommitted insert (dirty read)")
 		}
@@ -79,7 +85,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		db3 := db.Snapshot()
 		txn3 := db3.Txn(false)
 		out, err = txn3.First(0, id.IndexID, id1)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
 		}
@@ -96,16 +102,20 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
+		oldV, err := txn1.Insert(0, toReflectValue(obj1b))
+		require.NoError(t, err)
+		require.Equal(t, *obj1a, fromReflectValue[TestObject](oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
+		oldV, err = txn1.Insert(0, toReflectValue(obj2))
+		require.NoError(t, err)
+		require.Nil(t, oldV)
 
 		txn2 := db.Txn(false)
 		out, err := txn2.First(0, id.IndexID, id1)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
 		}
@@ -114,7 +124,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		}
 
 		out, err = txn2.First(0, id.IndexID, id2)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from transaction should not observe uncommitted insert (dirty read)")
 		}
@@ -129,19 +139,23 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
+		oldV, err := txn1.Insert(0, toReflectValue(obj1b))
+		require.NoError(t, err)
+		require.Equal(t, *obj1a, fromReflectValue[TestObject](oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
+		oldV, err = txn1.Insert(0, toReflectValue(obj2))
+		require.NoError(t, err)
+		require.Equal(t, *obj3, fromReflectValue[TestObject](oldV))
 
 		// Commit
 		txn1.Commit()
 
 		txn2 := db2.Txn(false)
 		out, err := txn2.First(0, id.IndexID, id1)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
 		}
@@ -150,7 +164,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		}
 
 		out, err = txn2.First(0, id.IndexID, id2)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
 		}
@@ -164,12 +178,16 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj1b)))
+		oldV, err := txn1.Insert(0, toReflectValue(obj1b))
+		require.NoError(t, err)
+		require.Equal(t, *obj1a, fromReflectValue[TestObject](oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
-		mustNoError(t, txn1.Insert(0, toReflectValue(obj2)))
+		oldV, err = txn1.Insert(0, toReflectValue(obj2))
+		require.NoError(t, err)
+		require.Equal(t, *obj3, fromReflectValue[TestObject](oldV))
 
 		txn2 := db.Txn(false)
 
@@ -177,7 +195,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		txn1.Commit()
 
 		out, err := txn2.First(0, id.IndexID, id1)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
 		}
@@ -186,7 +204,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		}
 
 		out, err = txn2.First(0, id.IndexID, id2)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
 		}
@@ -200,12 +218,14 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1 := testObj()
 		obj1.ID = id1
 		obj1.Baz = "also"
-		mustNoError(t, txn2.Insert(0, toReflectValue(obj1)))
+		oldV, err := txn2.Insert(0, toReflectValue(obj1))
+		require.NoError(t, err)
+		require.Equal(t, *obj1a, fromReflectValue[TestObject](oldV))
 		txn2.Commit()
 
 		txn1 := db.Txn(false)
 		out, err := txn1.First(0, id.IndexID, id1)
-		mustNoError(t, err)
+		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
 		}

@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/iradix"
-	"github.com/outofforest/memdb/id"
+	memdbid "github.com/outofforest/memdb/id"
 )
 
 // ErrNotFound is returned when the requested item is not found.
@@ -85,15 +85,15 @@ func (txn *Txn) Commit() {
 // When updating an object, the obj provided should be a copy rather
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
-func (txn *Txn) Insert(table uint64, obj *reflect.Value) error {
+func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error) {
 	if !txn.write {
-		return errors.Errorf("cannot insert in read-only transaction")
+		return nil, errors.Errorf("cannot insert in read-only transaction")
 	}
 	if table >= uint64(len(txn.db.schema)) {
-		return errors.Errorf("invalid table '%d'", table)
+		return nil, errors.Errorf("invalid table '%d'", table)
 	}
 	if obj.Kind() != reflect.Ptr {
-		return errors.Errorf("non-pointer object '%v'", obj.Type())
+		return nil, errors.Errorf("non-pointer object '%v'", obj.Type())
 	}
 
 	objPtr := obj.UnsafePointer()
@@ -102,19 +102,28 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) error {
 	tableSchema := txn.db.schema[table]
 
 	// Get the primary ID of the object
-	idSchema := tableSchema[id.IndexID]
+	idSchema := tableSchema[memdbid.IndexID]
 	idIndexer := idSchema.Indexer
-	id := make([]byte, id.Length)
+	id := make([]byte, memdbid.Length)
 	idIndexer.FromObject(id, objPtr)
 
-	// Lookup the object by ID first, to see if this is an update
 	idTxn := txn.writableIndex(&idSchema.id)
-	existing, update := idTxn.Get(id)
+	prev, updated := idTxn.Insert(id, obj)
+	var previousObj *reflect.Value
+	var existingPtr unsafe.Pointer
+	if updated {
+		previousObj = prev.(*reflect.Value)
+		existingPtr = previousObj.UnsafePointer()
+	}
 
 	// On an update, there is an existing object with the given
 	// primary ID. We do the update by deleting the current object
 	// and inserting the new object.
-	for _, indexSchema := range tableSchema {
+	for indexID, indexSchema := range tableSchema {
+		if indexID == memdbid.IndexID {
+			continue
+		}
+
 		indexer := indexSchema.Indexer
 		keySize := indexer.SizeFromObject(objPtr)
 		if keySize == 0 {
@@ -139,9 +148,7 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) error {
 
 		// Handle the update by deleting from the index first
 		//nolint:nestif
-		if update {
-			existingPtr := existing.(*reflect.Value).UnsafePointer()
-
+		if updated {
 			if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
 				if !indexSchema.Unique {
 					keySize += uint64(len(id))
@@ -169,20 +176,20 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) error {
 		// Update the value of the index
 		indexTxn.Insert(b, obj)
 	}
-	return nil
+	return previousObj, nil
 }
 
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
-func (txn *Txn) Delete(table uint64, obj *reflect.Value) error {
+func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error) {
 	if !txn.write {
-		return errors.Errorf("cannot delete in read-only transaction")
+		return nil, errors.Errorf("cannot delete in read-only transaction")
 	}
 	if table >= uint64(len(txn.db.schema)) {
-		return errors.Errorf("invalid table '%d'", table)
+		return nil, errors.Errorf("invalid table '%d'", table)
 	}
 	if obj.Kind() != reflect.Ptr {
-		return errors.Errorf("non-pointer object '%v'", obj.Type())
+		return nil, errors.Errorf("non-pointer object '%v'", obj.Type())
 	}
 
 	objPtr := obj.UnsafePointer()
@@ -191,22 +198,25 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) error {
 	tableSchema := txn.db.schema[table]
 
 	// Get the primary ID of the object.
-	idSchema := tableSchema[id.IndexID]
+	idSchema := tableSchema[memdbid.IndexID]
 	idIndexer := idSchema.Indexer
-	id := make([]byte, id.Length)
+	id := make([]byte, memdbid.Length)
 	idIndexer.FromObject(id, objPtr)
 
-	// Lookup the object by ID first, check if we should continue.
 	idTxn := txn.writableIndex(&idSchema.id)
-	existing, ok := idTxn.Get(id)
-	if !ok {
-		return ErrNotFound
+	prev, deleted := idTxn.Delete(id)
+	if !deleted {
+		return nil, ErrNotFound
 	}
-
-	existingPtr := existing.(*reflect.Value).UnsafePointer()
+	previousObj := prev.(*reflect.Value)
+	existingPtr := previousObj.UnsafePointer()
 
 	// Remove the object from all the indexes.
-	for _, indexSchema := range tableSchema {
+	for indexID, indexSchema := range tableSchema {
+		if indexID == memdbid.IndexID {
+			continue
+		}
+
 		indexer := indexSchema.Indexer
 		if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
 			if !indexSchema.Unique {
@@ -228,7 +238,7 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) error {
 			indexTxn.Delete(existingB)
 		}
 	}
-	return nil
+	return previousObj, nil
 }
 
 // First is used to return the first matching object for
