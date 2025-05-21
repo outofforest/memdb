@@ -10,18 +10,16 @@ func New[V any]() *Tree[V] {
 // Tree is a very simple immutable binary tree to keep collection of objects.
 // Objects are not stored in order. They cannot be deleted, nor iterated.
 type Tree[V any] struct {
-	revision        uint64
-	genesisRevision uint64
-	root            *node[V]
+	revision uint64
+	root     *node[V]
 }
 
 // Next creates next version of the tree.
 // This is not cloning!!! Changes made to parent tree might be visible in child!
 func (t *Tree[V]) Next() *Tree[V] {
 	return &Tree[V]{
-		revision:        t.revision + 1,
-		genesisRevision: t.revision,
-		root:            t.root,
+		revision: t.revision + 1,
+		root:     t.root,
 	}
 }
 
@@ -34,7 +32,7 @@ func (t *Tree[V]) Get(key uint64) (*V, bool) {
 		}
 
 		if n.key == key {
-			return n.value, n.valueRevision > t.genesisRevision
+			return n.value, n.valueRevision == t.revision
 		}
 
 		bit := key & 0x01
