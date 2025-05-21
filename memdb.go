@@ -7,6 +7,7 @@ package memdb
 
 import (
 	"encoding/binary"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -75,7 +76,7 @@ func NewMemDB(indexes [][]Index) (*MemDB, error) {
 	// Create the MemDB
 	db := &MemDB{
 		schema: schema,
-		root:   unsafe.Pointer(iradix.New()),
+		root:   unsafe.Pointer(iradix.New[reflect.Value]()),
 	}
 	db.initialize()
 	return db, nil
@@ -90,8 +91,8 @@ func (db *MemDB) DBSchema() DBSchema {
 }
 
 // getRoot is used to do an atomic load of the root pointer.
-func (db *MemDB) getRoot() *iradix.Node {
-	return (*iradix.Node)(atomic.LoadPointer(&db.root))
+func (db *MemDB) getRoot() *iradix.Node[iradix.Node[reflect.Value]] {
+	return (*iradix.Node[iradix.Node[reflect.Value]])(atomic.LoadPointer(&db.root))
 }
 
 // Txn is used to start a new transaction in either read or write mode.
@@ -103,7 +104,7 @@ func (db *MemDB) Txn(write bool) *Txn {
 	return &Txn{
 		db:      db,
 		write:   write,
-		rootTxn: iradix.NewTxn(db.getRoot()),
+		rootTxn: iradix.NewTxn[iradix.Node[reflect.Value]](db.getRoot()),
 	}
 }
 
@@ -132,7 +133,7 @@ func (db *MemDB) initialize() {
 	txn := iradix.NewTxn(db.getRoot())
 	for _, tableSchema := range db.schema {
 		for _, i := range tableSchema {
-			index := iradix.New()
+			index := iradix.New[reflect.Value]()
 			txn.Insert(i.id, index)
 		}
 	}

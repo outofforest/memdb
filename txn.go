@@ -23,9 +23,9 @@ var ErrNotFound = errors.Errorf("not found")
 type Txn struct {
 	db      *MemDB
 	write   bool
-	rootTxn *iradix.Txn
+	rootTxn *iradix.Txn[iradix.Node[reflect.Value]]
 
-	modified map[*[]byte]*iradix.Txn
+	modified map[*[]byte]*iradix.Txn[reflect.Value]
 }
 
 // Abort is used to cancel this transaction.
@@ -108,11 +108,9 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 	idIndexer.FromObject(id, objPtr)
 
 	idTxn := txn.writableIndex(&idSchema.id)
-	prev, updated := idTxn.Insert(id, obj)
-	var previousObj *reflect.Value
+	previousObj := idTxn.Insert(id, obj)
 	var existingPtr unsafe.Pointer
-	if updated {
-		previousObj = prev.(*reflect.Value)
+	if previousObj != nil {
 		existingPtr = previousObj.UnsafePointer()
 	}
 
@@ -148,7 +146,7 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 
 		// Handle the update by deleting from the index first
 		//nolint:nestif
-		if updated {
+		if previousObj != nil {
 			if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
 				if !indexSchema.Unique {
 					keySize += uint64(len(id))
@@ -204,11 +202,10 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error)
 	idIndexer.FromObject(id, objPtr)
 
 	idTxn := txn.writableIndex(&idSchema.id)
-	prev, deleted := idTxn.Delete(id)
-	if !deleted {
+	previousObj := idTxn.Delete(id)
+	if previousObj == nil {
 		return nil, ErrNotFound
 	}
-	previousObj := prev.(*reflect.Value)
 	existingPtr := previousObj.UnsafePointer()
 
 	// Remove the object from all the indexes.
@@ -258,21 +255,13 @@ func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) 
 
 	// Do an exact lookup
 	if indexSchema.Unique && val != nil {
-		obj, ok := indexTxn.Get(val)
-		if !ok {
-			return nil, nil //nolint:nilnil
-		}
-		return obj.(*reflect.Value), nil
+		return indexTxn.Get(val), nil
 	}
 
 	// Handle non-unique index by using an iterator and getting the first value
 	iter := indexTxn.Root().Iterator()
 	iter.SeekPrefix(val)
-	_, value, ok := iter.Next()
-	if !ok {
-		return nil, nil //nolint:nilnil
-	}
-	return value.(*reflect.Value), nil
+	return iter.Next(), nil
 }
 
 // Last is used to return the last matching object for
@@ -292,21 +281,13 @@ func (txn *Txn) Last(table, index uint64, args ...any) (*reflect.Value, error) {
 
 	// Do an exact lookup
 	if indexSchema.Unique && val != nil {
-		obj, ok := indexTxn.Get(val)
-		if !ok {
-			return nil, nil //nolint:nilnil
-		}
-		return obj.(*reflect.Value), nil
+		return indexTxn.Get(val), nil
 	}
 
 	// Handle non-unique index by using an iterator and getting the last value
 	iter := indexTxn.Root().ReverseIterator()
 	iter.SeekPrefix(val)
-	_, value, ok := iter.Previous()
-	if !ok {
-		return nil, nil //nolint:nilnil
-	}
-	return value.(*reflect.Value), nil
+	return iter.Previous(), nil
 }
 
 // Get is used to construct a ResultIterator over all the rows that match the
@@ -365,7 +346,7 @@ func (txn *Txn) GetReverse(table, index uint64, args ...any) (ResultIterator, er
 // readableIndex returns a transaction usable for reading the given index in a
 // table. If the transaction is a write transaction with modifications, a clone of the
 // modified index will be returned.
-func (txn *Txn) readableIndex(indexID *[]byte, clone bool) *iradix.Txn {
+func (txn *Txn) readableIndex(indexID *[]byte, clone bool) *iradix.Txn[reflect.Value] {
 	// Look for existing transaction
 	if txn.write && txn.modified != nil {
 		if exist, ok := txn.modified[indexID]; ok {
@@ -377,16 +358,14 @@ func (txn *Txn) readableIndex(indexID *[]byte, clone bool) *iradix.Txn {
 	}
 
 	// Create a read transaction
-	raw, _ := txn.rootTxn.Get(*indexID)
-	indexTxn := iradix.NewTxn(raw.(*iradix.Node))
-	return indexTxn
+	return iradix.NewTxn(txn.rootTxn.Get(*indexID))
 }
 
 // writableIndex returns a transaction usable for modifying the
 // given index in a table.
-func (txn *Txn) writableIndex(indexID *[]byte) *iradix.Txn {
+func (txn *Txn) writableIndex(indexID *[]byte) *iradix.Txn[reflect.Value] {
 	if txn.modified == nil {
-		txn.modified = map[*[]byte]*iradix.Txn{}
+		txn.modified = map[*[]byte]*iradix.Txn[reflect.Value]{}
 	}
 
 	// Look for existing transaction
@@ -396,8 +375,7 @@ func (txn *Txn) writableIndex(indexID *[]byte) *iradix.Txn {
 	}
 
 	// Start a new transaction
-	raw, _ := txn.rootTxn.Get(*indexID)
-	indexTxn := iradix.NewTxn(raw.(*iradix.Node))
+	indexTxn := iradix.NewTxn(txn.rootTxn.Get(*indexID))
 
 	// Keep this open for the duration of the txn
 	txn.modified[indexID] = indexTxn
@@ -436,34 +414,37 @@ func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, [
 	return indexSchema, b, nil
 }
 
-func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator, []byte, error) {
-	// Get the index value to scan
+func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], []byte, error) {
+	// Get the index value to scan.
 	indexSchema, val, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Get the index itself
+	// Get the index itself.
 	indexTxn := txn.readableIndex(&indexSchema.id, true)
 	indexRoot := indexTxn.Root()
 
-	// Get an iterator over the index
+	// Get an iterator over the index.
 	indexIter := indexRoot.Iterator()
 	return indexIter, val, nil
 }
 
-func (txn *Txn) getIndexIteratorReverse(table, index uint64, args ...any) (*iradix.ReverseIterator, []byte, error) {
-	// Get the index value to scan
+func (txn *Txn) getIndexIteratorReverse(
+	table, index uint64,
+	args ...any,
+) (*iradix.ReverseIterator[reflect.Value], []byte, error) {
+	// Get the index value to scan.
 	indexSchema, val, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Get the index itself
+	// Get the index itself.
 	indexTxn := txn.readableIndex(&indexSchema.id, true)
 	indexRoot := indexTxn.Root()
 
-	// Get an interator over the index
+	// Get an iterator over the index.
 	indexIter := indexRoot.ReverseIterator()
 	return indexIter, val, nil
 }
@@ -495,25 +476,17 @@ type ResultIterator interface {
 // This is much more efficient than a sliceIterator as we are not
 // materializing the entire view.
 type radixIterator struct {
-	iter *iradix.Iterator
+	iter *iradix.Iterator[reflect.Value]
 }
 
 func (r *radixIterator) Next() *reflect.Value {
-	_, value, ok := r.iter.Next()
-	if !ok {
-		return nil
-	}
-	return value.(*reflect.Value)
+	return r.iter.Next()
 }
 
 type radixReverseIterator struct {
-	iter *iradix.ReverseIterator
+	iter *iradix.ReverseIterator[reflect.Value]
 }
 
 func (r *radixReverseIterator) Next() *reflect.Value {
-	_, value, ok := r.iter.Previous()
-	if !ok {
-		return nil
-	}
-	return value.(*reflect.Value)
+	return r.iter.Previous()
 }
