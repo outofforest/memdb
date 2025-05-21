@@ -6,7 +6,6 @@
 package memdb
 
 import (
-	"encoding/binary"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/outofforest/iradix"
 	"github.com/outofforest/memdb/id"
+	"github.com/outofforest/memdb/tree"
 )
 
 // MemDB is an in-memory database providing Atomicity, Consistency, and
@@ -31,7 +31,7 @@ import (
 // snapshots of the DB being read from other goroutines.
 type MemDB struct {
 	schema DBSchema
-	root   unsafe.Pointer // *iradix.Tree underneath
+	root   unsafe.Pointer // *tree.Tree underneath
 
 	// There can only be a single writer at once
 	writer sync.Mutex
@@ -41,8 +41,6 @@ type MemDB struct {
 func NewMemDB(indexes [][]Index) (*MemDB, error) {
 	schema := make(DBSchema, 0, len(indexes))
 
-	var indexID uint64
-	var indexIDBytes [8]byte
 	for _, tableIndexes := range indexes {
 		t := TableSchema{}
 		schema = append(schema, t)
@@ -55,16 +53,6 @@ func NewMemDB(indexes [][]Index) (*MemDB, error) {
 		for _, index := range tableIndexes {
 			indexSchema := index.Schema()
 			t[index.ID()] = indexSchema
-
-			indexID++
-			binary.BigEndian.PutUint64(indexIDBytes[:], indexID)
-			for j, b := range indexIDBytes {
-				if b != 0 {
-					indexSchema.id = make([]byte, len(indexIDBytes[j:]))
-					copy(indexSchema.id, indexIDBytes[j:])
-					break
-				}
-			}
 		}
 	}
 
@@ -76,7 +64,7 @@ func NewMemDB(indexes [][]Index) (*MemDB, error) {
 	// Create the MemDB
 	db := &MemDB{
 		schema: schema,
-		root:   unsafe.Pointer(iradix.New[reflect.Value]()),
+		root:   unsafe.Pointer(tree.New[iradix.Txn[reflect.Value]]()),
 	}
 	db.initialize()
 	return db, nil
@@ -91,8 +79,8 @@ func (db *MemDB) DBSchema() DBSchema {
 }
 
 // getRoot is used to do an atomic load of the root pointer.
-func (db *MemDB) getRoot() *iradix.Node[iradix.Node[reflect.Value]] {
-	return (*iradix.Node[iradix.Node[reflect.Value]])(atomic.LoadPointer(&db.root))
+func (db *MemDB) getRoot() *tree.Tree[iradix.Txn[reflect.Value]] {
+	return (*tree.Tree[iradix.Txn[reflect.Value]])(atomic.LoadPointer(&db.root))
 }
 
 // Txn is used to start a new transaction in either read or write mode.
@@ -104,7 +92,7 @@ func (db *MemDB) Txn(write bool) *Txn {
 	return &Txn{
 		db:      db,
 		write:   write,
-		rootTxn: iradix.NewTxn[iradix.Node[reflect.Value]](db.getRoot()),
+		rootTxn: db.getRoot().Clone(),
 	}
 }
 
@@ -130,12 +118,13 @@ func (db *MemDB) Snapshot() *MemDB {
 // initialize is used to setup the DB for use after creation. This should
 // be called only once after allocating a MemDB.
 func (db *MemDB) initialize() {
-	txn := iradix.NewTxn(db.getRoot())
+	root := db.getRoot()
+	var indexID uint64
 	for _, tableSchema := range db.schema {
-		for _, i := range tableSchema {
-			index := iradix.New[reflect.Value]()
-			txn.Insert(i.id, index)
+		for _, indexSchema := range tableSchema {
+			indexID++
+			indexSchema.id = indexID
+			root.Set(indexID, iradix.NewTxn(iradix.New[reflect.Value]()))
 		}
 	}
-	db.root = unsafe.Pointer(txn.Commit())
 }
