@@ -339,11 +339,14 @@ func (txn *Txn) GetReverse(table, index uint64, args ...any) (ResultIterator, er
 // table. If the transaction is a write transaction with modifications, a clone of the
 // modified index will be returned.
 func (txn *Txn) readableIndex(indexID uint64, clone bool) *iradix.Txn[reflect.Value] {
-	index, _ := txn.rootTxn.Get(indexID)
-	if clone {
-		return index.Clone()
+	index, dirty := txn.rootTxn.Get(indexID)
+	if dirty {
+		if clone {
+			return index.Clone()
+		}
+		return index
 	}
-	return index
+	return iradix.NewTxn(index.Root())
 }
 
 // writableIndex returns a transaction usable for modifying the
@@ -351,7 +354,7 @@ func (txn *Txn) readableIndex(indexID uint64, clone bool) *iradix.Txn[reflect.Va
 func (txn *Txn) writableIndex(indexID uint64) *iradix.Txn[reflect.Value] {
 	index, dirty := txn.rootTxn.Get(indexID)
 	if !dirty {
-		index = index.Clone()
+		index = iradix.NewTxn(index.Root())
 		txn.rootTxn.Set(indexID, index)
 	}
 	return index

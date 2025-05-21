@@ -15,13 +15,12 @@ type Tree[V any] struct {
 	root            *node[V]
 }
 
-// Clone creates next version of the tree.
-func (t *Tree[V]) Clone() *Tree[V] {
-	genesisRevision := t.revision
-	t.revision++
+// Next creates next version of the tree.
+// This is not cloning!!! Changes made to parent tree might be visible in child!
+func (t *Tree[V]) Next() *Tree[V] {
 	return &Tree[V]{
-		revision:        t.revision,
-		genesisRevision: genesisRevision,
+		revision:        t.revision + 1,
+		genesisRevision: t.revision,
 		root:            t.root,
 	}
 }

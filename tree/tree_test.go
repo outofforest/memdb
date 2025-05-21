@@ -119,7 +119,7 @@ func TestTreeBig(t *testing.T) {
 	}
 }
 
-func TestClone(t *testing.T) {
+func TestNext(t *testing.T) {
 	requireT := require.New(t)
 
 	tree1 := New[int]()
@@ -129,8 +129,10 @@ func TestClone(t *testing.T) {
 	tree1.Set(4, lo.ToPtr(40))
 	tree1.Set(5, lo.ToPtr(50))
 
-	tree2 := tree1.Clone()
+	tree2 := tree1.Next()
 
+	tree1.Set(3, lo.ToPtr(31))
+	tree2.Set(4, lo.ToPtr(42))
 	tree1.Set(5, lo.ToPtr(51))
 	tree2.Set(5, lo.ToPtr(52))
 	tree1.Set(6, lo.ToPtr(61))
@@ -150,7 +152,7 @@ func TestClone(t *testing.T) {
 
 	v, dirty = tree1.Get(3)
 	requireT.NotNil(v)
-	requireT.Equal(30, *v)
+	requireT.Equal(31, *v)
 	requireT.True(dirty)
 
 	v, dirty = tree1.Get(4)
@@ -187,15 +189,16 @@ func TestClone(t *testing.T) {
 	requireT.Equal(20, *v)
 	requireT.False(dirty)
 
+	// This test case describes that this mechanism is not cloning.
 	v, dirty = tree2.Get(3)
 	requireT.NotNil(v)
-	requireT.Equal(30, *v)
+	requireT.Equal(31, *v)
 	requireT.False(dirty)
 
 	v, dirty = tree2.Get(4)
 	requireT.NotNil(v)
-	requireT.Equal(40, *v)
-	requireT.False(dirty)
+	requireT.Equal(42, *v)
+	requireT.True(dirty)
 
 	v, dirty = tree2.Get(5)
 	requireT.NotNil(v)
