@@ -13,7 +13,7 @@ type entity struct {
 	ID memdb.ID
 }
 
-func TestIDIndexer(t *testing.T) {
+func TestEntityIDIndexer(t *testing.T) {
 	t.Parallel()
 
 	requireT := require.New(t)
