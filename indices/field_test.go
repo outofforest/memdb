@@ -179,6 +179,7 @@ func TestBoolIndexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueBool)
+	requireT.False(index.Schema().Unique)
 	indexer := index.Schema().Indexer.(boolIndexer)
 
 	v.Value2.Value2.ValueBool = false

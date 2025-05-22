@@ -16,12 +16,14 @@ func NewIfIndex[T any](subIndex memdb.Index, f func(o *T) bool) *IfIndex[T] {
 		panic(errors.Errorf("subindex type mismatch, expected: %s, got: %s", t, subIndex.Type()))
 	}
 
+	schema := subIndex.Schema()
 	index := &IfIndex[T]{
 		subIndex: subIndex,
 		indexer: ifIndexer[T]{
-			subIndexer: subIndex.Schema().Indexer,
+			subIndexer: schema.Indexer,
 			f:          f,
 		},
+		unique: schema.Unique,
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -34,6 +36,7 @@ type IfIndex[T any] struct {
 	id       uint64
 	subIndex memdb.Index
 	indexer  memdb.Indexer
+	unique   bool
 }
 
 // ID returns ID of the index.
@@ -54,6 +57,7 @@ func (i *IfIndex[T]) NumOfArgs() uint64 {
 // Schema returns memdb index schema.
 func (i *IfIndex[T]) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
+		Unique:  i.unique,
 		Indexer: i.indexer,
 	}
 }

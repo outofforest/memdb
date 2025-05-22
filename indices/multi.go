@@ -18,6 +18,7 @@ func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 	t := subIndices[0].Type()
 
 	var numOfArgs uint64
+	var unique bool
 	subIndexers := make([]memdb.Indexer, 0, len(subIndices))
 	for _, si := range subIndices {
 		if si.Type() != t {
@@ -26,6 +27,7 @@ func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 		numOfArgs += si.NumOfArgs()
 		schema := si.Schema()
 		subIndexers = append(subIndexers, schema.Indexer)
+		unique = unique || schema.Unique
 	}
 
 	index := &MultiIndex{
@@ -35,6 +37,7 @@ func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 			subIndices:  subIndices,
 			subIndexers: subIndexers,
 		},
+		unique: unique,
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -46,6 +49,7 @@ type MultiIndex struct {
 	numOfArgs  uint64
 	entityType reflect.Type
 	indexer    memdb.Indexer
+	unique     bool
 }
 
 // ID returns ID of the index.
@@ -66,6 +70,7 @@ func (i *MultiIndex) NumOfArgs() uint64 {
 // Schema returns memdb index schema.
 func (i *MultiIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
+		Unique:  i.unique,
 		Indexer: i.indexer,
 	}
 }
