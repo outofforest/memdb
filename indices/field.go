@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
+	"github.com/outofforest/memdb/id"
 )
 
 // NewFieldIndex defines new field index.
@@ -421,7 +422,40 @@ func (i uint64Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	return 8
 }
 
+var idType = reflect.TypeOf(id.ID{})
+
+var _ memdb.Indexer = idIndexer{}
+
+func idToBytes(id id.ID, b []byte) {
+	copy(b, id[:])
+}
+
+type idIndexer struct {
+	offset uintptr
+}
+
+func (i idIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
+	return id.Length
+}
+
+func (i idIndexer) SizeFromArgs(args ...any) uint64 {
+	return id.Length
+}
+
+func (i idIndexer) FromArgs(b []byte, args ...any) uint64 {
+	idToBytes(reflect.ValueOf(args[0]).Convert(idType).Interface().(id.ID), b)
+	return id.Length
+}
+
+func (i idIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	idToBytes(valueByOffset[id.ID](o, i.offset), b)
+	return id.Length
+}
+
 func indexerForType(t reflect.Type, offset uintptr) (memdb.Indexer, error) {
+	if t.ConvertibleTo(idType) {
+		return idIndexer{offset: offset}, nil
+	}
 	if t.ConvertibleTo(timeType) {
 		return timeIndexer{offset: offset}, nil
 	}

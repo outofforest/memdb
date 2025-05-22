@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/outofforest/memdb/id"
 )
 
 const (
@@ -39,6 +41,7 @@ type subO2 struct {
 	ValueUint16 uint16
 	ValueUint32 uint32
 	ValueUint64 uint64
+	ValueID     id.ID
 	Value1      string
 	Value2      int16
 	Value3      uint8
@@ -110,22 +113,22 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value1)
 	requireT.Equal(stringIndexer{
-		offset: 0x60,
+		offset: 0x70,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value2)
 	requireT.Equal(int16Indexer{
-		offset: 0x70,
+		offset: 0x80,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value3)
 	requireT.Equal(uint8Indexer{
-		offset: 0x72,
+		offset: 0x82,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value2.Value3)
 	requireT.Equal(stringIndexer{
-		offset: 0x78,
+		offset: 0x88,
 	}, i.Schema().Indexer)
 
 	requireT.Panics(func() {
@@ -134,22 +137,22 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i = NewFieldIndex(v, &v.Value3.Value1)
 	requireT.Equal(stringIndexer{
-		offset: 0xd8,
+		offset: 0xf8,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value3.Value2)
 	requireT.Equal(int16Indexer{
-		offset: 0xe8,
+		offset: 0x108,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value3.Value3)
 	requireT.Equal(uint8Indexer{
-		offset: 0xea,
+		offset: 0x10a,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value4)
 	requireT.Equal(stringIndexer{
-		offset: 0xf0,
+		offset: 0x110,
 	}, i.Schema().Indexer)
 }
 
@@ -355,4 +358,21 @@ func TestUInt64Indexer(t *testing.T) {
 
 	v.Value2.Value2.ValueUint64 = math.MaxUint64
 	verify(requireT, indexer, []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, v, v.Value2.Value2.ValueUint64)
+}
+
+func TestIDIndexer(t *testing.T) {
+	requireT := require.New(t)
+	v := &o{}
+
+	index := NewFieldIndex(v, &v.Value2.Value2.ValueID)
+	indexer := index.Schema().Indexer.(idIndexer)
+
+	v.Value2.Value2.ValueID = id.ID{}
+	verify(requireT, indexer, []byte{
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	}, v, v.Value2.Value2.ValueID)
+
+	v.Value2.Value2.ValueID = id.ID{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf}
+	verify(requireT, indexer, []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf},
+		v, v.Value2.Value2.ValueID)
 }
