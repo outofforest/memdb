@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/outofforest/memdb"
 	"github.com/outofforest/memdb/id"
 )
 
@@ -17,6 +18,7 @@ const (
 )
 
 type o struct {
+	ID     memdb.ID
 	Value1 uint64
 	Value2 subO1
 	Value3 subO2
@@ -95,7 +97,7 @@ func TestFieldIndexOffset(t *testing.T) {
 	requireT.EqualValues(1, i.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), i.Type())
 	requireT.Equal(uint64Indexer{
-		offset: 0x00,
+		offset: 0x10,
 	}, i.Schema().Indexer)
 
 	requireT.Panics(func() {
@@ -104,7 +106,7 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i = NewFieldIndex(v, &v.Value2.Value1)
 	requireT.Equal(uint64Indexer{
-		offset: 0x08,
+		offset: 0x18,
 	}, i.Schema().Indexer)
 
 	requireT.Panics(func() {
@@ -113,22 +115,22 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value1)
 	requireT.Equal(stringIndexer{
-		offset: 0x70,
+		offset: 0x80,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value2)
 	requireT.Equal(int16Indexer{
-		offset: 0x80,
+		offset: 0x90,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value3)
 	requireT.Equal(uint8Indexer{
-		offset: 0x82,
+		offset: 0x92,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value2.Value3)
 	requireT.Equal(stringIndexer{
-		offset: 0x88,
+		offset: 0x98,
 	}, i.Schema().Indexer)
 
 	requireT.Panics(func() {
@@ -137,22 +139,22 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i = NewFieldIndex(v, &v.Value3.Value1)
 	requireT.Equal(stringIndexer{
-		offset: 0xf8,
+		offset: 0x108,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value3.Value2)
 	requireT.Equal(int16Indexer{
-		offset: 0x108,
+		offset: 0x118,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value3.Value3)
 	requireT.Equal(uint8Indexer{
-		offset: 0x10a,
+		offset: 0x11a,
 	}, i.Schema().Indexer)
 
 	i = NewFieldIndex(v, &v.Value4)
 	requireT.Equal(stringIndexer{
-		offset: 0x110,
+		offset: 0x120,
 	}, i.Schema().Indexer)
 }
 
@@ -376,4 +378,109 @@ func TestIDIndexer(t *testing.T) {
 	v.Value2.Value2.ValueID = id.ID{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf}
 	verify(requireT, indexer, []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf},
 		v, v.Value2.Value2.ValueID)
+}
+
+func TestEntityUpdateWithFieldIndex(t *testing.T) {
+	requireT := require.New(t)
+
+	var v o
+	index := NewFieldIndex(&v, &v.Value1)
+
+	db, err := memdb.NewMemDB([][]memdb.Index{{index}})
+	requireT.NoError(err)
+	txn := db.Txn(true)
+
+	eID := memdb.NewID[memdb.ID]()
+	e := reflect.ValueOf(&o{
+		ID:     eID,
+		Value1: 1,
+	})
+
+	old, err := txn.Insert(0, &e)
+	requireT.NoError(err)
+	requireT.Nil(old)
+	txn.Commit()
+
+	txn = db.Txn(true)
+	e2, err := txn.First(0, id.IndexID, eID)
+	requireT.NoError(err)
+	requireT.NotNil(e2)
+	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
+
+	e3, err := txn.First(0, index.ID(), uint64(1))
+	requireT.NoError(err)
+	requireT.NotNil(e3)
+	requireT.Equal(e2, e3)
+
+	e4 := reflect.ValueOf(&o{
+		ID:     eID,
+		Value1: 2,
+	})
+
+	old, err = txn.Insert(0, &e4)
+	requireT.NoError(err)
+	requireT.Equal(&e, old)
+	txn.Commit()
+
+	txn = db.Txn(false)
+	e2, err = txn.First(0, id.IndexID, eID)
+	requireT.NoError(err)
+	requireT.NotNil(e2)
+	requireT.Equal(e4.Elem().Interface(), e2.Elem().Interface())
+
+	e3, err = txn.First(0, index.ID(), uint64(2))
+	requireT.NoError(err)
+	requireT.NotNil(e3)
+	requireT.Equal(e2, e3)
+
+	e3, err = txn.First(0, index.ID(), uint64(1))
+	requireT.NoError(err)
+	requireT.Nil(e3)
+}
+
+func TestEntityDeleteWithFieldIndex(t *testing.T) {
+	requireT := require.New(t)
+
+	var v o
+	index := NewFieldIndex(&v, &v.Value1)
+
+	db, err := memdb.NewMemDB([][]memdb.Index{{index}})
+	requireT.NoError(err)
+	txn := db.Txn(true)
+
+	eID := memdb.NewID[memdb.ID]()
+	e := reflect.ValueOf(&o{
+		ID:     eID,
+		Value1: 1,
+	})
+
+	old, err := txn.Insert(0, &e)
+	requireT.NoError(err)
+	requireT.Nil(old)
+	txn.Commit()
+
+	txn = db.Txn(true)
+	e2, err := txn.First(0, id.IndexID, eID)
+	requireT.NoError(err)
+	requireT.NotNil(e2)
+	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
+
+	e3, err := txn.First(0, index.ID(), uint64(1))
+	requireT.NoError(err)
+	requireT.NotNil(e3)
+	requireT.Equal(e2, e3)
+
+	old, err = txn.Delete(0, &e)
+	requireT.NoError(err)
+	requireT.Equal(&e, old)
+	txn.Commit()
+
+	txn = db.Txn(false)
+	e2, err = txn.First(0, id.IndexID, eID)
+	requireT.NoError(err)
+	requireT.Nil(e2)
+
+	e3, err = txn.First(0, index.ID(), uint64(1))
+	requireT.NoError(err)
+	requireT.Nil(e3)
 }
