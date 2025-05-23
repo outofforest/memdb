@@ -116,22 +116,22 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 
 		indexer := indexSchema.Indexer
 		keySize := indexer.SizeFromObject(objPtr)
-		if keySize == 0 {
-			continue
-		}
+		var b []byte
+		var n uint64
+		if keySize > 0 {
+			if !indexSchema.Unique {
+				keySize += uint64(len(id))
+			}
 
-		if !indexSchema.Unique {
-			keySize += uint64(len(id))
-		}
+			b = make([]byte, keySize)
+			n = indexSchema.Indexer.FromObject(b, objPtr)
 
-		b := make([]byte, keySize)
-		n := indexSchema.Indexer.FromObject(b, objPtr)
-
-		// Handle non-unique index by computing a unique index.
-		// This is done by appending the primary key which must
-		// be unique anyways.
-		if !indexSchema.Unique {
-			copy(b[n:], id)
+			// Handle non-unique index by computing a unique index.
+			// This is done by appending the primary key which must
+			// be unique anyway.
+			if !indexSchema.Unique {
+				copy(b[n:], id)
+			}
 		}
 
 		indexTxn := txn.writableIndex(indexSchema.id)
@@ -150,7 +150,7 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 				// If we are writing to the same index with the same value,
 				// we can avoid the delete as the insert will overwrite the
 				// value anyway.
-				if !bytes.Equal(existingB[:existingN], b[:n]) {
+				if b == nil || !bytes.Equal(existingB[:existingN], b[:n]) {
 					// Handle non-unique index by computing a unique index.
 					// This is done by appending the primary key which must
 					// be unique anyways.
@@ -164,7 +164,9 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 		}
 
 		// Update the value of the index
-		indexTxn.Insert(b, obj)
+		if b != nil {
+			indexTxn.Insert(b, obj)
+		}
 	}
 	return previousObj, nil
 }
