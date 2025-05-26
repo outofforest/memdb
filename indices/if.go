@@ -67,24 +67,24 @@ type ifIndexer[T any] struct {
 	f          func(o *T) bool
 }
 
-func (ii ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
-	if !ii.f((*T)(o)) {
+func (i ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
+	if !i.f((*T)(o)) {
 		return 0
 	}
-	return ii.subIndexer.SizeFromObject(o)
+	return i.subIndexer.SizeFromObject(o)
 }
 
-func (ii ifIndexer[T]) SizeFromArgs(args ...any) uint64 {
-	return ii.subIndexer.SizeFromArgs(args...)
+func (i ifIndexer[T]) SizeFromArgs(args ...any) uint64 {
+	return i.subIndexer.SizeFromArgs(args...)
 }
 
-func (ii ifIndexer[T]) FromArgs(b []byte, args ...any) uint64 {
-	return ii.subIndexer.FromArgs(b, args...)
+func (i ifIndexer[T]) FromArgs(b []byte, args ...any) uint64 {
+	return i.subIndexer.FromArgs(b, args...)
 }
 
-func (ii ifIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {
-	if !ii.f((*T)(o)) {
+func (i ifIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	if !i.f((*T)(o)) {
 		return 0
 	}
-	return ii.subIndexer.FromObject(b, o)
+	return i.subIndexer.FromObject(b, o)
 }
