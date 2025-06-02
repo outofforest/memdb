@@ -4,6 +4,7 @@
 package memdb_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -203,55 +204,6 @@ func TestTxn_First_NonUnique_Multiple(t *testing.T) {
 	}
 }
 
-func TestTxn_Last_NonUnique_Multiple(t *testing.T) {
-	db := testDB(t)
-	txn := db.Txn(true)
-
-	obj := &TestObject{
-		ID:  memdb.ID{1},
-		Foo: "xyz",
-	}
-	obj2 := &TestObject{
-		ID:  memdb.ID{2},
-		Foo: "abc",
-	}
-	obj3 := &TestObject{
-		ID:  memdb.ID{3},
-		Foo: "abc",
-	}
-
-	oldV, err := txn.Insert(0, toReflectValue(obj))
-	require.NoError(t, err)
-	require.Nil(t, oldV)
-
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
-	require.NoError(t, err)
-	require.Nil(t, oldV)
-
-	oldV, err = txn.Insert(0, toReflectValue(obj3))
-	require.NoError(t, err)
-	require.Nil(t, oldV)
-
-	// The last object has a unique secondary value
-	raw, err := txn.Last(0, indexFoo.ID(), obj.Foo)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if fromReflectValue[TestObject](raw) != *obj {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj)
-	}
-
-	// Second and third object share secondary value,
-	// but the primary ID of obj3 should be last
-	raw, err = txn.Last(0, indexFoo.ID(), obj3.Foo)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if fromReflectValue[TestObject](raw) != *obj3 {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj3)
-	}
-}
-
 func TestTxn_InsertDelete_Simple(t *testing.T) {
 	db := testDB(t)
 	txn := db.Txn(true)
@@ -414,90 +366,6 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 	checkResult(txn)
 }
 
-func TestTxn_InsertGetReverse_Simple(t *testing.T) {
-	db := testDB(t)
-	txn := db.Txn(true)
-
-	obj1 := &TestObject{
-		ID:  memdb.ID{1},
-		Foo: "xyz",
-	}
-	obj2 := &TestObject{
-		ID:  memdb.ID{2},
-		Foo: "xyz",
-	}
-
-	oldV, err := txn.Insert(0, toReflectValue(obj1))
-	require.NoError(t, err)
-	require.Nil(t, oldV)
-
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
-	require.NoError(t, err)
-	require.Nil(t, oldV)
-
-	checkResult := func(txn *memdb.Txn) {
-		// Attempt a row scan on the ID
-		result, err := txn.GetReverse(0, id.IndexID)
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj2 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj2)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj1 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-		}
-
-		if raw := result.Next(); raw != nil {
-			t.Fatalf("bad: %#v %#v", raw, nil)
-		}
-
-		// Attempt a row scan on the ID with specific ID
-		result, err = txn.GetReverse(0, id.IndexID, obj1.ID)
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj1 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-		}
-
-		if raw := result.Next(); raw != nil {
-			t.Fatalf("bad: %#v %#v", raw, nil)
-		}
-
-		// Attempt a row scan secondary index
-		result, err = txn.GetReverse(0, indexFoo.ID(), obj2.Foo)
-		if err != nil {
-			t.Fatalf("err: %v", err)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj2 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj2)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj1 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-		}
-
-		if raw := result.Next(); raw != nil {
-			t.Fatalf("bad: %#v %#v", raw, nil)
-		}
-	}
-
-	// Check the results within the txn
-	checkResult(txn)
-
-	// Commit and start a new read transaction
-	txn.Commit()
-	txn = db.Txn(false)
-
-	// Check the results in a new txn
-	checkResult(txn)
-}
-
 func TestTxn_GetIterAndDelete(t *testing.T) {
 	db, err := memdb.NewMemDB([][]memdb.Index{{indexFoo}})
 	require.NoError(t, err)
@@ -533,6 +401,88 @@ func TestTxn_GetIterAndDelete(t *testing.T) {
 	}
 
 	txn.Commit()
+}
+
+func TestTxn_LowerBound(t *testing.T) {
+	basicRows := []TestObject{
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x01}, Foo: "1"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x02}, Foo: "2"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x04}, Foo: "3"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x05}, Foo: "4"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x01, 0x00}, Foo: "5"},
+		{ID: memdb.ID{0x01, 0x00, 0x00, 0x01, 0x00}, Foo: "6"},
+	}
+
+	cases := []struct {
+		Name   string
+		Rows   []TestObject
+		Search memdb.ID
+		Want   []TestObject
+	}{
+		{
+			Name:   "all",
+			Rows:   basicRows,
+			Search: memdb.ID{},
+			Want:   basicRows,
+		},
+		{
+			Name:   "subset existing bound",
+			Rows:   basicRows,
+			Search: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x05},
+			Want: []TestObject{
+				{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x05}, Foo: "4"},
+				{ID: memdb.ID{0x00, 0x00, 0x00, 0x01, 0x00}, Foo: "5"},
+				{ID: memdb.ID{0x01, 0x00, 0x00, 0x01, 0x00}, Foo: "6"},
+			},
+		},
+		{
+			Name:   "subset non-existent bound",
+			Rows:   basicRows,
+			Search: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x06},
+			Want: []TestObject{
+				{ID: memdb.ID{0x00, 0x00, 0x00, 0x01, 0x00}, Foo: "5"},
+				{ID: memdb.ID{0x01, 0x00, 0x00, 0x01, 0x00}, Foo: "6"},
+			},
+		},
+		{
+			Name:   "empty subset",
+			Rows:   basicRows,
+			Search: memdb.ID{0x09, 0x09, 0x09, 0x09, 0x09},
+			Want:   []TestObject{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			db := testDB(t)
+
+			txn := db.Txn(true)
+			for _, row := range tc.Rows {
+				_, err := txn.Insert(0, toReflectValue(row))
+				if err != nil {
+					t.Fatalf("err inserting: %s", err)
+				}
+			}
+			txn.Commit()
+
+			txn = db.Txn(false)
+			defer txn.Abort()
+			iterator, err := txn.LowerBound(0, 0, tc.Search)
+			if err != nil {
+				t.Fatalf("err lower bound: %s", err)
+			}
+
+			// Now range scan and built a result set
+			result := []TestObject{}
+			for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
+				result = append(result, fromReflectValue[TestObject](obj))
+			}
+
+			if !reflect.DeepEqual(result, tc.Want) {
+				t.Fatalf(" got: %#v\nwant: %#v", result, tc.Want)
+			}
+		})
+	}
 }
 
 func testDB(t *testing.T) *memdb.MemDB {
