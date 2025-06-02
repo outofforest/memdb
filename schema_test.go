@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/indices"
 )
 
@@ -33,7 +32,7 @@ func TestIndexSchema_Validate(t *testing.T) {
 		t.Fatalf("should not validate, no indexer")
 	}
 
-	s.Indexer = id.Indexer{}
+	s.Indexer = memdb.IDIndexer{}
 	err = s.Validate()
 	if err != nil {
 		t.Fatalf("should validate: %v", err)

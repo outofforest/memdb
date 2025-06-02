@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/indices"
 )
 
@@ -51,7 +50,7 @@ func TestTxn_Isolation(t *testing.T) {
 	require.Nil(t, oldV)
 
 	// Results should show up in this transaction
-	raw, err := txn1.First(0, id.IndexID)
+	raw, err := txn1.First(0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -63,7 +62,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn2 := db.Txn(false)
 
 	// Nothing should show up in this transaction
-	raw, err = txn2.First(0, id.IndexID)
+	raw, err = txn2.First(0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -75,7 +74,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn1.Commit()
 
 	// Nothing should show up in this transaction
-	raw, err = txn2.First(0, id.IndexID)
+	raw, err = txn2.First(0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -87,7 +86,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn3 := db.Txn(false)
 
 	// Results should show up in this transaction
-	raw, err = txn3.First(0, id.IndexID)
+	raw, err = txn3.First(0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -140,7 +139,7 @@ func TestTxn_Abort(t *testing.T) {
 	txn2 := db.Txn(false)
 
 	// Nothing should show up in this transaction
-	raw, err := txn2.First(0, id.IndexID)
+	raw, err := txn2.First(0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -154,7 +153,7 @@ func TestComplexDB(t *testing.T) {
 	testPopulateData(t, db)
 	txn := db.Txn(false) // read only
 
-	// Get using a full name
+	// Iterator using a full name
 	raw, err := txn.First(peopleTableID, personNameIndex.ID(), "Armon", "Dadgar")
 	require.NoError(t, err)
 	if raw == nil {

@@ -16,6 +16,6 @@ func TestUniqueIndex(t *testing.T) {
 	requireT.True(index.Schema().Unique)
 	requireT.Equal(subIndex.Schema().Indexer, index.Schema().Indexer)
 	requireT.Equal(subIndex.Type(), index.Type())
-	requireT.Equal(subIndex.NumOfArgs(), index.NumOfArgs())
+	requireT.Equal(subIndex.Schema().Indexer.Args(), index.Schema().Indexer.Args())
 	requireT.NotEqual(subIndex.ID(), index.ID())
 }

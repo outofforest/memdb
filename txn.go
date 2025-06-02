@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/iradix"
-	memdbid "github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/tree"
 )
 
@@ -90,13 +89,13 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 
 	objPtr := obj.UnsafePointer()
 
-	// Get the table schema
+	// Iterator the table schema
 	tableSchema := txn.db.schema[table]
 
-	// Get the primary ID of the object
-	idSchema := tableSchema[memdbid.IndexID]
+	// Iterator the primary ID of the object
+	idSchema := tableSchema[IDIndexID]
 	idIndexer := idSchema.Indexer
-	id := make([]byte, memdbid.Length)
+	id := make([]byte, IDLength)
 	idIndexer.FromObject(id, objPtr)
 
 	idTxn := txn.writableIndex(idSchema.id)
@@ -110,7 +109,7 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 	// primary ID. We do the update by deleting the current object
 	// and inserting the new object.
 	for indexID, indexSchema := range tableSchema {
-		if indexID == memdbid.IndexID {
+		if indexID == IDIndexID {
 			continue
 		}
 
@@ -186,13 +185,13 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error)
 
 	objPtr := obj.UnsafePointer()
 
-	// Get the table schema.
+	// Iterator the table schema.
 	tableSchema := txn.db.schema[table]
 
-	// Get the primary ID of the object.
-	idSchema := tableSchema[memdbid.IndexID]
+	// Iterator the primary ID of the object.
+	idSchema := tableSchema[IDIndexID]
 	idIndexer := idSchema.Indexer
-	id := make([]byte, memdbid.Length)
+	id := make([]byte, IDLength)
 	idIndexer.FromObject(id, objPtr)
 
 	idTxn := txn.writableIndex(idSchema.id)
@@ -204,7 +203,7 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error)
 
 	// Remove the object from all the indexes.
 	for indexID, indexSchema := range tableSchema {
-		if indexID == memdbid.IndexID {
+		if indexID == IDIndexID {
 			continue
 		}
 
@@ -238,13 +237,13 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error)
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
 func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) {
-	// Get the index value
-	indexSchema, val, err := txn.getIndexValue(table, index, args...)
+	// Iterator the index value
+	indexSchema, val, _, err := txn.getIndexValue(table, index, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the index itself
+	// Iterator the index itself
 	indexTxn := txn.readableIndex(indexSchema.id, false)
 
 	// Do an exact lookup
@@ -258,7 +257,7 @@ func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) 
 	return iter.Next(), nil
 }
 
-// Get is used to construct a ResultIterator over all the rows that match the
+// Iterator is used to construct a ResultIterator over all the rows that match the
 // given constraints of an index. The index values must match exactly (this
 // is not a range-based or prefix-based lookup) by default.
 //
@@ -270,42 +269,17 @@ func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) 
 //
 // See the documentation for ResultIterator to understand the behaviour of the
 // returned ResultIterator.
-func (txn *Txn) Get(table, index uint64, args ...any) (ResultIterator, error) {
-	indexIter, val, err := txn.getIndexIterator(table, index, args...)
+func (txn *Txn) Iterator(table, index uint64, args ...any) (ResultIterator, error) {
+	indexIter, err := txn.getIndexIterator(table, index, args...)
 	if err != nil {
 		return nil, err
 	}
-
-	// Seek the iterator to the appropriate sub-set
-	indexIter.SeekPrefix(val)
 
 	// Create an iterator
 	iter := &radixIterator{
 		iter: indexIter,
 	}
 
-	return iter, nil
-}
-
-// LowerBound is used to construct a ResultIterator over all the range of
-// rows that have an index value greater than or equal to the provided args.
-// Calling this then iterating until the rows are larger than required allows
-// range scans within an index.
-// See the documentation for ResultIterator to understand the behaviour of the
-// returned ResultIterator.
-func (txn *Txn) LowerBound(table, index uint64, args ...any) (ResultIterator, error) {
-	indexIter, val, err := txn.getIndexIterator(table, index, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Seek the iterator to the appropriate sub-set
-	indexIter.SeekLowerBound(val)
-
-	// Create an iterator
-	iter := &radixIterator{
-		iter: indexIter,
-	}
 	return iter, nil
 }
 
@@ -334,52 +308,87 @@ func (txn *Txn) writableIndex(indexID uint64) *iradix.Txn[reflect.Value] {
 	return index
 }
 
+// Operator describes the matching algorithm applied to the following arguments.
+type Operator int
+
+// From means that following arguments will be used to execute lower bound matching.
+const From Operator = iota
+
 // getIndexValue is used to get the IndexSchema and the value
 // used to scan the index given the parameters.
-func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, []byte, error) {
+func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, []byte, uint64, error) {
 	if table >= uint64(len(txn.db.schema)) {
-		return nil, nil, errors.Errorf("invalid table '%d'", table)
+		return nil, nil, 0, errors.Errorf("invalid table '%d'", table)
 	}
-	// Get the table schema.
+	// Iterator the table schema.
 	tableSchema := txn.db.schema[table]
 
-	// Get the index schema.
+	// Iterator the index schema.
 	indexSchema, ok := tableSchema[index]
 	if !ok {
-		return nil, nil, errors.Errorf("invalid index '%d'", index)
+		return nil, nil, 0, errors.Errorf("invalid index '%d'", index)
 	}
 
-	// Hot-path for when there are no arguments.
-	if len(args) == 0 {
-		return indexSchema, nil, nil
+	// Iterator the exact match index.
+	argDefs := indexSchema.Indexer.Args()
+
+	var numOfArgs int
+	var keySize uint64
+	for _, a := range args {
+		if _, ok := a.(Operator); ok {
+			continue
+		}
+		if numOfArgs == len(argDefs) {
+			return nil, nil, 0, errors.Errorf("too many arguments, received: %d, acceptable: %d", len(args),
+				len(argDefs))
+		}
+		keySize += argDefs[numOfArgs].SizeFromArg(a)
+		numOfArgs++
 	}
 
-	// Get the exact match index.
-	indexer := indexSchema.Indexer
-	keySize := indexer.SizeFromArgs(args...)
+	if numOfArgs == 0 {
+		return indexSchema, nil, 0, nil
+	}
 	if keySize == 0 {
-		return indexSchema, nil, errors.Errorf("empty key")
+		return indexSchema, nil, 0, errors.Errorf("empty key")
 	}
 
 	b := make([]byte, keySize)
-	indexer.FromArgs(b, args...)
-	return indexSchema, b, nil
-}
-
-func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], []byte, error) {
-	// Get the index value to scan.
-	indexSchema, val, err := txn.getIndexValue(table, index, args...)
-	if err != nil {
-		return nil, nil, err
+	splitIndex := keySize
+	var n uint64
+	var argI int
+	for _, a := range args {
+		if _, ok := a.(Operator); ok {
+			splitIndex = n
+			continue
+		}
+		n += argDefs[argI].FromArg(b[n:], a)
+		argI++
 	}
 
-	// Get the index itself.
+	return indexSchema, b, splitIndex, nil
+}
+
+func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], error) {
+	// Iterator the index value to scan.
+	indexSchema, val, splitIndex, err := txn.getIndexValue(table, index, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Iterator the index itself.
 	indexTxn := txn.readableIndex(indexSchema.id, true)
 	indexRoot := indexTxn.Root()
 
-	// Get an iterator over the index.
+	// Iterator an iterator over the index.
 	indexIter := indexRoot.Iterator()
-	return indexIter, val, nil
+	if splitIndex > 0 {
+		indexIter.SeekPrefix(val[:splitIndex])
+	}
+	if splitIndex < uint64(len(val)) {
+		indexIter.SeekLowerBound(val[splitIndex:])
+	}
+	return indexIter, nil
 }
 
 // ResultIterator is used to iterate over a list of results from a query on a table.

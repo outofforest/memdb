@@ -23,16 +23,15 @@ func TestMultiIndexer(t *testing.T) {
 
 	index := NewMultiIndex(index1, index2)
 	requireT.NotZero(index.ID())
-	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 	requireT.False(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
+	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 5
 	v.Value4 = xyz
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x58, 0x59, 0x5a, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x58, 0x59, 0x5a, 0x0}, v)
 }
 
 func TestMultiIndexerNotAllArguments(t *testing.T) {
@@ -50,8 +49,7 @@ func TestMultiIndexerNotAllArguments(t *testing.T) {
 
 	v.Value1 = 5
 	v.Value4 = xyz
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5},
-		verifyPart{o: v}, v.Value1)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5}, verifyPart{o: v})
 }
 
 func TestMultiIndexerWithMultiSubIndexer3Arguments(t *testing.T) {
@@ -67,16 +65,16 @@ func TestMultiIndexerWithMultiSubIndexer3Arguments(t *testing.T) {
 
 	index := NewMultiIndex(index3, index4)
 	requireT.NotZero(index.ID())
-	requireT.EqualValues(3, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
+	requireT.Len(indexer.Args(), 3)
 
 	v.Value1 = 5
 	v.Value4 = xyz
 	v.Value2.Value3 = ijk
-	verify(requireT, indexer, []byte{0x49, 0x4a, 0x4b, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x58, 0x59, 0x5a, 0x0},
-		v, v.Value2.Value3, v.Value1, v.Value4)
+	verifyObject(requireT, indexer,
+		[]byte{0x49, 0x4a, 0x4b, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x58, 0x59, 0x5a, 0x0}, v)
 }
 
 func TestMultiIndexerWithMultiSubIndexer2Arguments(t *testing.T) {
@@ -96,8 +94,8 @@ func TestMultiIndexerWithMultiSubIndexer2Arguments(t *testing.T) {
 	v.Value1 = 5
 	v.Value4 = xyz
 	v.Value2.Value3 = ijk
-	verify(requireT, indexer, []byte{0x49, 0x4a, 0x4b, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5},
-		verifyPart{o: v}, v.Value2.Value3, v.Value1)
+	verifyObject(requireT, indexer, []byte{0x49, 0x4a, 0x4b, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5},
+		verifyPart{o: v})
 }
 
 func TestMultiIndexerWithMultiSubIndexer1Argument(t *testing.T) {
@@ -118,8 +116,7 @@ func TestMultiIndexerWithMultiSubIndexer1Argument(t *testing.T) {
 	v.Value1 = 5
 	v.Value4 = xyz
 	v.Value2.Value3 = ijk
-	verify(requireT, indexer, []byte{0x49, 0x4a, 0x4b, 0x0},
-		verifyPart{o: v}, v.Value2.Value3)
+	verifyObject(requireT, indexer, []byte{0x49, 0x4a, 0x4b, 0x0}, verifyPart{o: v})
 }
 
 func TestMultiIndexerWithIfSubindex(t *testing.T) {
@@ -134,25 +131,23 @@ func TestMultiIndexerWithIfSubindex(t *testing.T) {
 
 	index := NewMultiIndex(index1, index3)
 	requireT.NotZero(index.ID())
-	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
+	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
 	v.Value4 = abc
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0}, v)
 
 	v.Value1 = 2
 	v.Value4 = xyz
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x58, 0x59, 0x5a, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x58, 0x59, 0x5a, 0x0}, v)
 
 	v.Value1 = 1
 	v.Value4 = xyz
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x58, 0x59, 0x5a, 0x0},
-		verifyMissing{o: v}, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x58, 0x59, 0x5a, 0x0},
+		verifyMissing{o: v})
 }
 
 func TestMultiIndexerWithUniqueSubindex(t *testing.T) {
@@ -167,21 +162,19 @@ func TestMultiIndexerWithUniqueSubindex(t *testing.T) {
 
 	index := NewMultiIndex(index1, index3)
 	requireT.NotZero(index.ID())
-	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 	requireT.True(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
+	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
 	v.Value4 = abc
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0}, v)
 
 	v.Value1 = 2
 	v.Value4 = xyz
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x58, 0x59, 0x5a, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x58, 0x59, 0x5a, 0x0}, v)
 }
 
 func TestMultiErrorIfNoSubIndices(t *testing.T) {

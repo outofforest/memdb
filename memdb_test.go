@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 )
 
 func TestMemDB_SingleWriter_MultiReader(t *testing.T) {
@@ -74,7 +73,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 
 	// Object should exist in second snapshot but not first
 	txn = db.Txn(false)
-	out, err := txn.First(0, id.IndexID, obj.ID)
+	out, err := txn.First(0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -83,7 +82,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 	}
 
 	txn = db2.Txn(true)
-	out, err = txn.First(0, id.IndexID, obj.ID)
+	out, err = txn.First(0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

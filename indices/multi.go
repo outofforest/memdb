@@ -17,25 +17,25 @@ func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 
 	t := subIndices[0].Type()
 
-	var numOfArgs uint64
 	var unique bool
+	var args []memdb.ArgSerializer
 	subIndexers := make([]memdb.Indexer, 0, len(subIndices))
 	for _, si := range subIndices {
 		if si.Type() != t {
 			panic(errors.Errorf("wrong type, expected: %s, got: %s", t, si.Type()))
 		}
-		numOfArgs += si.NumOfArgs()
 		schema := si.Schema()
 		subIndexers = append(subIndexers, schema.Indexer)
 		unique = unique || schema.Unique
+		args = append(args, schema.Indexer.Args()...)
 	}
 
 	index := &MultiIndex{
-		numOfArgs:  numOfArgs,
 		entityType: t,
 		indexer: &multiIndexer{
 			subIndices:  subIndices,
 			subIndexers: subIndexers,
+			args:        args,
 		},
 		unique: unique,
 	}
@@ -46,7 +46,6 @@ func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 // MultiIndex compiles many indices into a single one.
 type MultiIndex struct {
 	id         uint64
-	numOfArgs  uint64
 	entityType reflect.Type
 	indexer    memdb.Indexer
 	unique     bool
@@ -62,11 +61,6 @@ func (i *MultiIndex) Type() reflect.Type {
 	return i.entityType
 }
 
-// NumOfArgs returns number of arguments taken by the index.
-func (i *MultiIndex) NumOfArgs() uint64 {
-	return i.numOfArgs
-}
-
 // Schema returns memdb index schema.
 func (i *MultiIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
@@ -80,6 +74,11 @@ var _ memdb.Indexer = &multiIndexer{}
 type multiIndexer struct {
 	subIndices  []memdb.Index
 	subIndexers []memdb.Indexer
+	args        []memdb.ArgSerializer
+}
+
+func (mi *multiIndexer) Args() []memdb.ArgSerializer {
+	return mi.args
 }
 
 func (mi *multiIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
@@ -92,44 +91,6 @@ func (mi *multiIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 		size += s
 	}
 	return size
-}
-
-func (mi *multiIndexer) SizeFromArgs(args ...any) uint64 {
-	var startArg uint64
-	var n uint64
-
-	for i, index := range mi.subIndices {
-		if startArg >= uint64(len(args)) {
-			break
-		}
-		numOfArgs := index.NumOfArgs()
-		if startArg+numOfArgs > uint64(len(args)) {
-			n += mi.subIndexers[i].SizeFromArgs(args[startArg:]...)
-		} else {
-			n += mi.subIndexers[i].SizeFromArgs(args[startArg : startArg+numOfArgs]...)
-		}
-		startArg += numOfArgs
-	}
-	return n
-}
-
-func (mi *multiIndexer) FromArgs(b []byte, args ...any) uint64 {
-	var startArg uint64
-	var n uint64
-
-	for i, index := range mi.subIndices {
-		if startArg >= uint64(len(args)) {
-			break
-		}
-		numOfArgs := index.NumOfArgs()
-		if startArg+numOfArgs > uint64(len(args)) {
-			n += mi.subIndexers[i].FromArgs(b[n:], args[startArg:]...)
-		} else {
-			n += mi.subIndexers[i].FromArgs(b[n:], args[startArg:startArg+numOfArgs]...)
-		}
-		startArg += numOfArgs
-	}
-	return n
 }
 
 func (mi *multiIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {

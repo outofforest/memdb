@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 )
 
 const (
@@ -43,7 +42,7 @@ type subO2 struct {
 	ValueUint16 uint16
 	ValueUint32 uint32
 	ValueUint64 uint64
-	ValueID     id.ID
+	ValueID     memdb.ID
 	Value1      string
 	Value2      int16
 	Value3      uint8
@@ -94,7 +93,6 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i := NewFieldIndex(v, &v.Value1)
 	requireT.NotZero(i.ID())
-	requireT.EqualValues(1, i.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), i.Type())
 	requireT.Equal(uint64Indexer{
 		offset: 0x10,
@@ -370,12 +368,12 @@ func TestIDIndexer(t *testing.T) {
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueID)
 	indexer := index.Schema().Indexer.(idIndexer)
 
-	v.Value2.Value2.ValueID = id.ID{}
+	v.Value2.Value2.ValueID = memdb.ID{}
 	verify(requireT, indexer, []byte{
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}, v, v.Value2.Value2.ValueID)
 
-	v.Value2.Value2.ValueID = id.ID{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf}
+	v.Value2.Value2.ValueID = memdb.ID{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf}
 	verify(requireT, indexer, []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf},
 		v, v.Value2.Value2.ValueID)
 }
@@ -402,7 +400,7 @@ func TestEntityUpdateWithFieldIndex(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(true)
-	e2, err := txn.First(0, id.IndexID, eID)
+	e2, err := txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
 	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
@@ -423,7 +421,7 @@ func TestEntityUpdateWithFieldIndex(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(false)
-	e2, err = txn.First(0, id.IndexID, eID)
+	e2, err = txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
 	requireT.Equal(e4.Elem().Interface(), e2.Elem().Interface())
@@ -460,7 +458,7 @@ func TestEntityDeleteWithFieldIndex(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(true)
-	e2, err := txn.First(0, id.IndexID, eID)
+	e2, err := txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
 	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
@@ -476,11 +474,71 @@ func TestEntityDeleteWithFieldIndex(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(false)
-	e2, err = txn.First(0, id.IndexID, eID)
+	e2, err = txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.Nil(e2)
 
 	e3, err = txn.First(0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.Nil(e3)
+}
+
+type verifyPart struct {
+	o any
+}
+
+type verifyMissing struct {
+	o any
+}
+
+func verify(
+	requireT *require.Assertions,
+	indexer memdb.ArgSerializerIndexer,
+	expected []byte,
+	o any, arg any,
+) {
+	size := indexer.SizeFromArg(arg)
+	requireT.EqualValues(len(expected), size)
+	b := make([]byte, size)
+	requireT.Equal(size, indexer.FromArg(b, arg))
+	requireT.Equal(expected, b)
+
+	switch v := o.(type) {
+	case verifyPart:
+		size2 := indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer())
+		requireT.Greater(size2, size)
+		b := make([]byte, size2)
+		requireT.Equal(size2, indexer.FromObject(b, reflect.ValueOf(v.o).UnsafePointer()))
+		requireT.Equal(expected, b[:size])
+	case verifyMissing:
+		requireT.Zero(indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer()))
+	default:
+		size2 := indexer.SizeFromObject(reflect.ValueOf(o).UnsafePointer())
+		requireT.Equal(size, size2)
+		b := make([]byte, size)
+		requireT.Equal(size, indexer.FromObject(b, reflect.ValueOf(o).UnsafePointer()))
+		requireT.Equal(expected, b)
+	}
+}
+
+func verifyObject(
+	requireT *require.Assertions,
+	indexer memdb.Indexer,
+	expected []byte,
+	o any,
+) {
+	switch v := o.(type) {
+	case verifyPart:
+		size := indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer())
+		b := make([]byte, size)
+		requireT.Equal(size, indexer.FromObject(b, reflect.ValueOf(v.o).UnsafePointer()))
+		requireT.Equal(expected, b[:len(expected)])
+	case verifyMissing:
+		requireT.Zero(indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer()))
+	default:
+		size := indexer.SizeFromObject(reflect.ValueOf(o).UnsafePointer())
+		b := make([]byte, size)
+		requireT.Equal(size, indexer.FromObject(b, reflect.ValueOf(o).UnsafePointer()))
+		requireT.Equal(expected, b)
+	}
 }
