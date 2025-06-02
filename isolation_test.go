@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 )
 
 func TestMemDB_Isolation(t *testing.T) {
@@ -66,7 +65,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		require.Nil(t, oldV)
 
 		txn2 := db2.Txn(false)
-		out, err := txn2.First(0, id.IndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -75,7 +74,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from snapshot should not observe uncommitted update (dirty read)")
 		}
 
-		out, err = txn2.First(0, id.IndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe uncommitted insert (dirty read)")
@@ -84,7 +83,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		// New snapshot should not observe uncommitted writes
 		db3 := db.Snapshot()
 		txn3 := db3.Txn(false)
-		out, err = txn3.First(0, id.IndexID, id1)
+		out, err = txn3.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -114,7 +113,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		require.Nil(t, oldV)
 
 		txn2 := db.Txn(false)
-		out, err := txn2.First(0, id.IndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -123,7 +122,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from transaction should not observe uncommitted update (dirty read)")
 		}
 
-		out, err = txn2.First(0, id.IndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from transaction should not observe uncommitted insert (dirty read)")
@@ -154,7 +153,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		txn1.Commit()
 
 		txn2 := db2.Txn(false)
-		out, err := txn2.First(0, id.IndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -163,7 +162,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
 		}
 
-		out, err = txn2.First(0, id.IndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
@@ -194,7 +193,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		// Commit
 		txn1.Commit()
 
-		out, err := txn2.First(0, id.IndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")
@@ -203,7 +202,7 @@ func TestMemDB_Isolation(t *testing.T) {
 			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
 		}
 
-		out, err = txn2.First(0, id.IndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
@@ -224,7 +223,7 @@ func TestMemDB_Isolation(t *testing.T) {
 		txn2.Commit()
 
 		txn1 := db.Txn(false)
-		out, err := txn1.First(0, id.IndexID, id1)
+		out, err := txn1.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
 		if out == nil {
 			t.Fatalf("should exist")

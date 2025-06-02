@@ -29,8 +29,6 @@ func NewIfIndex[T any](subIndex memdb.Index, f func(o *T) bool) *IfIndex[T] {
 	return index
 }
 
-var _ memdb.Indexer = ifIndexer[int]{}
-
 // IfIndex indexes those elements from another index for which f returns true.
 type IfIndex[T any] struct {
 	id       uint64
@@ -49,11 +47,6 @@ func (i *IfIndex[T]) Type() reflect.Type {
 	return i.subIndex.Type()
 }
 
-// NumOfArgs returns number of arguments taken by the index.
-func (i *IfIndex[T]) NumOfArgs() uint64 {
-	return i.subIndex.NumOfArgs()
-}
-
 // Schema returns memdb index schema.
 func (i *IfIndex[T]) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
@@ -62,9 +55,15 @@ func (i *IfIndex[T]) Schema() *memdb.IndexSchema {
 	}
 }
 
+var _ memdb.Indexer = ifIndexer[int]{}
+
 type ifIndexer[T any] struct {
 	subIndexer memdb.Indexer
 	f          func(o *T) bool
+}
+
+func (i ifIndexer[T]) Args() []memdb.ArgSerializer {
+	return i.subIndexer.Args()
 }
 
 func (i ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
@@ -72,14 +71,6 @@ func (i ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
 		return 0
 	}
 	return i.subIndexer.SizeFromObject(o)
-}
-
-func (i ifIndexer[T]) SizeFromArgs(args ...any) uint64 {
-	return i.subIndexer.SizeFromArgs(args...)
-}
-
-func (i ifIndexer[T]) FromArgs(b []byte, args ...any) uint64 {
-	return i.subIndexer.FromArgs(b, args...)
 }
 
 func (i ifIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {

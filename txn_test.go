@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 )
 
 func TestTxn_Read_AbortCommit(t *testing.T) {
@@ -51,7 +50,7 @@ func TestTxn_Insert_First(t *testing.T) {
 	}
 	require.Nil(t, oldV)
 
-	raw, err := txn.First(0, id.IndexID, obj.ID)
+	raw, err := txn.First(0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -75,7 +74,7 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 	}
 	require.Nil(t, oldV)
 
-	raw, err := txn.First(0, id.IndexID, obj.ID)
+	raw, err := txn.First(0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -95,7 +94,7 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 	}
 	require.Equal(t, *obj, fromReflectValue[TestObject](oldV))
 
-	raw, err = txn.First(0, id.IndexID, obj.ID)
+	raw, err = txn.First(0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -250,7 +249,7 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	require.Nil(t, oldV)
 
 	// Lookup of the primary obj1 should fail
-	raw, err = txn.First(0, id.IndexID, obj1.ID)
+	raw, err = txn.First(0, memdb.IDIndexID, obj1.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -263,7 +262,7 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	txn = db.Txn(false)
 
 	// Lookup of the primary obj1 should fail
-	raw, err = txn.First(0, id.IndexID, obj1.ID)
+	raw, err = txn.First(0, memdb.IDIndexID, obj1.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -305,7 +304,7 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 
 	checkResult := func(txn *memdb.Txn) {
 		// Attempt a row scan on the ID
-		result, err := txn.Get(0, id.IndexID)
+		result, err := txn.Iterator(0, memdb.IDIndexID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -323,7 +322,7 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		}
 
 		// Attempt a row scan on the ID with specific ID
-		result, err = txn.Get(0, id.IndexID, obj1.ID)
+		result, err = txn.Iterator(0, memdb.IDIndexID, obj1.ID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -337,7 +336,7 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		}
 
 		// Attempt a row scan secondary index
-		result, err = txn.Get(0, indexFoo.ID(), obj1.Foo)
+		result, err = txn.Iterator(0, indexFoo.ID(), obj1.Foo)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -392,7 +391,7 @@ func TestTxn_GetIterAndDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, TestObject{ID: memdb.ID{123}, Foo: key}, fromReflectValue[TestObject](oldV))
 
-	iter, err := txn.Get(0, indexFoo.ID(), key)
+	iter, err := txn.Iterator(0, indexFoo.ID(), key)
 	require.NoError(t, err)
 
 	for obj := iter.Next(); obj != nil; obj = iter.Next() {
@@ -467,7 +466,7 @@ func TestTxn_LowerBound(t *testing.T) {
 
 			txn = db.Txn(false)
 			defer txn.Abort()
-			iterator, err := txn.LowerBound(0, 0, tc.Search)
+			iterator, err := txn.Iterator(0, 0, memdb.From, tc.Search)
 			if err != nil {
 				t.Fatalf("err lower bound: %s", err)
 			}

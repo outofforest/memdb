@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 )
 
 func ifFunc[T comparable](values ...T) func(o *T) bool {
@@ -32,22 +31,21 @@ func TestIfIndexer(t *testing.T) {
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1}, o{Value1: 2}))
 	requireT.NotZero(index.ID())
 	requireT.Equal(subIndex.Type(), index.Type())
-	requireT.Equal(subIndex.NumOfArgs(), index.NumOfArgs())
 	requireT.NotEqual(subIndex.ID(), index.ID())
 	requireT.False(index.Schema().Unique)
-	requireT.EqualValues(1, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
 	indexer := index.Schema().Indexer.(ifIndexer[o])
+	requireT.Len(indexer.Args(), 1)
 
 	v.Value1 = 1
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}, v, v.Value1)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}, v)
 
 	v.Value1 = 2
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2}, v, v.Value1)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2}, v)
 
 	v.Value1 = 3
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3}, verifyMissing{o: v}, v.Value1)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3}, verifyMissing{o: v})
 }
 
 func TestIfIndexerMulti(t *testing.T) {
@@ -63,25 +61,23 @@ func TestIfIndexerMulti(t *testing.T) {
 
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 1, Value4: def}))
 	requireT.NotZero(index.ID())
-	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 
 	indexer := index.Schema().Indexer.(ifIndexer[o])
+	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
 	v.Value4 = abc
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0}, v)
 
 	v.Value1 = 1
 	v.Value4 = def
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x44, 0x45, 0x46, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x44, 0x45, 0x46, 0x0}, v)
 
 	v.Value1 = 2
 	v.Value4 = abc
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x41, 0x42, 0x43, 0x0},
-		verifyMissing{o: v}, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x41, 0x42, 0x43, 0x0},
+		verifyMissing{o: v})
 }
 
 func TestIfIndexerUnique(t *testing.T) {
@@ -97,26 +93,24 @@ func TestIfIndexerUnique(t *testing.T) {
 
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 1, Value4: def}))
 	requireT.NotZero(index.ID())
-	requireT.EqualValues(2, index.NumOfArgs())
 	requireT.IsType(reflect.TypeOf(o{}), index.Type())
 	requireT.True(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(ifIndexer[o])
+	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
 	v.Value4 = abc
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x41, 0x42, 0x43, 0x0}, v)
 
 	v.Value1 = 1
 	v.Value4 = def
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x44, 0x45, 0x46, 0x0},
-		v, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x44, 0x45, 0x46, 0x0}, v)
 
 	v.Value1 = 2
 	v.Value4 = abc
-	verify(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x41, 0x42, 0x43, 0x0},
-		verifyMissing{o: v}, v.Value1, v.Value4)
+	verifyObject(requireT, indexer, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2, 0x41, 0x42, 0x43, 0x0},
+		verifyMissing{o: v})
 }
 
 func TestIfIndexerErrorOnTypeMismatch(t *testing.T) {
@@ -156,7 +150,7 @@ func TestEntityUpdateWithIfIndex(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(true)
-	e2, err := txn.First(0, id.IndexID, eID)
+	e2, err := txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
 	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
@@ -177,7 +171,7 @@ func TestEntityUpdateWithIfIndex(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(false)
-	e2, err = txn.First(0, id.IndexID, eID)
+	e2, err = txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
 	requireT.Equal(e4.Elem().Interface(), e2.Elem().Interface())

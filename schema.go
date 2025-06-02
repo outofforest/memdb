@@ -8,8 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
-
-	"github.com/outofforest/memdb/id"
 )
 
 // DBSchema is the schema to use for the full database with a MemDB instance.
@@ -36,11 +34,11 @@ func (s DBSchema) Validate() error {
 			return errors.Errorf("missing table indexes for %d", tableID)
 		}
 
-		if _, ok := indexes[id.IndexID]; !ok {
+		if _, ok := indexes[IDIndexID]; !ok {
 			return errors.Errorf("table %d must have id index", tableID)
 		}
 
-		if !indexes[id.IndexID].Unique {
+		if !indexes[IDIndexID].Unique {
 			return errors.Errorf("id index of table %d must be unique", tableID)
 		}
 
@@ -58,20 +56,28 @@ func (s DBSchema) Validate() error {
 type Index interface {
 	ID() uint64
 	Type() reflect.Type
-	NumOfArgs() uint64
 	Schema() *IndexSchema
+}
+
+// ArgSerializerIndexer combines ArgSerializer and Indexer.
+type ArgSerializerIndexer interface {
+	ArgSerializer
+	Indexer
+}
+
+// ArgSerializer serializes index argument.
+type ArgSerializer interface {
+	SizeFromArg(arg any) uint64
+	FromArg(b []byte, args any) uint64
 }
 
 // Indexer is an interface used for defining indexes.
 type Indexer interface {
+	// Args returns arg serializer for index.
+	Args() []ArgSerializer
+
 	// SizeFromObject returns byte size of the index key based on the object.
 	SizeFromObject(o unsafe.Pointer) uint64
-
-	// SizeFromArgs returns byte size of the index key based on the args.
-	SizeFromArgs(args ...any) uint64
-
-	// FromArgs is called to build the exact index key from a list of arguments.
-	FromArgs(b []byte, args ...any) uint64
 
 	// FromObject extracts the index value from an object.
 	FromObject(b []byte, o unsafe.Pointer) uint64

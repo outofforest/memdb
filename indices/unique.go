@@ -34,11 +34,6 @@ func (i *UniqueIndex) Type() reflect.Type {
 	return i.subIndex.Type()
 }
 
-// NumOfArgs returns number of arguments taken by the index.
-func (i *UniqueIndex) NumOfArgs() uint64 {
-	return i.subIndex.NumOfArgs()
-}
-
 // Schema returns memdb index schema.
 func (i *UniqueIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{

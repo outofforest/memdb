@@ -13,15 +13,13 @@ func NewReverseIndex(subIndex memdb.Index) *ReverseIndex {
 	index := &ReverseIndex{
 		subIndex: subIndex,
 		indexer: reverseIndexer{
-			subIndexer: schema.Indexer,
+			subIndexer: schema.Indexer.(memdb.ArgSerializerIndexer),
 		},
 		unique: schema.Unique,
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
 }
-
-var _ memdb.Indexer = reverseIndexer{}
 
 // ReverseIndex reverses the order of elements in the index by reversing all the bits of the index key.
 type ReverseIndex struct {
@@ -41,11 +39,6 @@ func (i *ReverseIndex) Type() reflect.Type {
 	return i.subIndex.Type()
 }
 
-// NumOfArgs returns number of arguments taken by the index.
-func (i *ReverseIndex) NumOfArgs() uint64 {
-	return i.subIndex.NumOfArgs()
-}
-
 // Schema returns memdb index schema.
 func (i *ReverseIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
@@ -54,20 +47,27 @@ func (i *ReverseIndex) Schema() *memdb.IndexSchema {
 	}
 }
 
+var _ memdb.Indexer = reverseIndexer{}
+var _ memdb.ArgSerializer = reverseIndexer{}
+
 type reverseIndexer struct {
-	subIndexer memdb.Indexer
+	subIndexer memdb.ArgSerializerIndexer
+}
+
+func (i reverseIndexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i reverseIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return i.subIndexer.SizeFromObject(o)
 }
 
-func (i reverseIndexer) SizeFromArgs(args ...any) uint64 {
-	return i.subIndexer.SizeFromArgs(args...)
+func (i reverseIndexer) SizeFromArg(arg any) uint64 {
+	return i.subIndexer.SizeFromArg(arg)
 }
 
-func (i reverseIndexer) FromArgs(b []byte, args ...any) uint64 {
-	n := i.subIndexer.FromArgs(b, args...)
+func (i reverseIndexer) FromArg(b []byte, arg any) uint64 {
+	n := i.subIndexer.FromArg(b, arg)
 	negate(b[:n])
 	return n
 }

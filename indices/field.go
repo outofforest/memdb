@@ -7,10 +7,8 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
-	"github.com/stretchr/testify/require"
 
 	"github.com/outofforest/memdb"
-	"github.com/outofforest/memdb/id"
 )
 
 // NewFieldIndex defines new field index.
@@ -73,11 +71,6 @@ func (i *FieldIndex) Type() reflect.Type {
 	return i.entityType
 }
 
-// NumOfArgs returns number of arguments taken by the index.
-func (i *FieldIndex) NumOfArgs() uint64 {
-	return 1
-}
-
 // Schema returns memdb index schema.
 func (i *FieldIndex) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
@@ -115,21 +108,26 @@ func boolToBytes(v bool, b []byte) {
 }
 
 var _ memdb.Indexer = boolIndexer{}
+var _ memdb.ArgSerializer = boolIndexer{}
 
 type boolIndexer struct {
 	offset uintptr
+}
+
+func (i boolIndexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i boolIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 1
 }
 
-func (i boolIndexer) SizeFromArgs(args ...any) uint64 {
+func (i boolIndexer) SizeFromArg(arg any) uint64 {
 	return 1
 }
 
-func (i boolIndexer) FromArgs(b []byte, args ...any) uint64 {
-	boolToBytes(reflect.ValueOf(args[0]).Bool(), b)
+func (i boolIndexer) FromArg(b []byte, arg any) uint64 {
+	boolToBytes(reflect.ValueOf(arg).Bool(), b)
 	return 1
 }
 
@@ -143,21 +141,26 @@ func stringToBytes(s string, b []byte) uint64 {
 }
 
 var _ memdb.Indexer = stringIndexer{}
+var _ memdb.ArgSerializer = stringIndexer{}
 
 type stringIndexer struct {
 	offset uintptr
+}
+
+func (i stringIndexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i stringIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return uint64(len(valueByOffset[string](o, i.offset))) + 1
 }
 
-func (i stringIndexer) SizeFromArgs(args ...any) uint64 {
-	return uint64(len(reflect.ValueOf(args[0]).String())) + 1
+func (i stringIndexer) SizeFromArg(arg any) uint64 {
+	return uint64(len(reflect.ValueOf(arg).String())) + 1
 }
 
-func (i stringIndexer) FromArgs(b []byte, args ...any) uint64 {
-	return stringToBytes(reflect.ValueOf(args[0]).String(), b)
+func (i stringIndexer) FromArg(b []byte, arg any) uint64 {
+	return stringToBytes(reflect.ValueOf(arg).String(), b)
 }
 
 func (i stringIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
@@ -175,21 +178,26 @@ func timeToBytes(t time.Time, b []byte) {
 }
 
 var _ memdb.Indexer = timeIndexer{}
+var _ memdb.ArgSerializer = timeIndexer{}
 
 type timeIndexer struct {
 	offset uintptr
+}
+
+func (i timeIndexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i timeIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 12
 }
 
-func (i timeIndexer) SizeFromArgs(args ...any) uint64 {
+func (i timeIndexer) SizeFromArg(arg any) uint64 {
 	return 12
 }
 
-func (i timeIndexer) FromArgs(b []byte, args ...any) uint64 {
-	timeToBytes(reflect.ValueOf(args[0]).Convert(timeType).Interface().(time.Time), b)
+func (i timeIndexer) FromArg(b []byte, arg any) uint64 {
+	timeToBytes(reflect.ValueOf(arg).Convert(timeType).Interface().(time.Time), b)
 	return 12
 }
 
@@ -203,21 +211,26 @@ func int8ToBytes(i int8, b []byte) {
 }
 
 var _ memdb.Indexer = int8Indexer{}
+var _ memdb.ArgSerializer = int8Indexer{}
 
 type int8Indexer struct {
 	offset uintptr
+}
+
+func (i int8Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i int8Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 1
 }
 
-func (i int8Indexer) SizeFromArgs(args ...any) uint64 {
+func (i int8Indexer) SizeFromArg(arg any) uint64 {
 	return 1
 }
 
-func (i int8Indexer) FromArgs(b []byte, args ...any) uint64 {
-	int8ToBytes(int8(reflect.ValueOf(args[0]).Int()), b)
+func (i int8Indexer) FromArg(b []byte, arg any) uint64 {
+	int8ToBytes(int8(reflect.ValueOf(arg).Int()), b)
 	return 1
 }
 
@@ -231,21 +244,26 @@ func int16ToBytes(i int16, b []byte) {
 }
 
 var _ memdb.Indexer = int16Indexer{}
+var _ memdb.Indexer = int16Indexer{}
 
 type int16Indexer struct {
 	offset uintptr
+}
+
+func (i int16Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i int16Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 2
 }
 
-func (i int16Indexer) SizeFromArgs(args ...any) uint64 {
+func (i int16Indexer) SizeFromArg(arg any) uint64 {
 	return 2
 }
 
-func (i int16Indexer) FromArgs(b []byte, args ...any) uint64 {
-	int16ToBytes(int16(reflect.ValueOf(args[0]).Int()), b)
+func (i int16Indexer) FromArg(b []byte, arg any) uint64 {
+	int16ToBytes(int16(reflect.ValueOf(arg).Int()), b)
 	return 2
 }
 
@@ -259,21 +277,26 @@ func int32ToBytes(i int32, b []byte) {
 }
 
 var _ memdb.Indexer = int32Indexer{}
+var _ memdb.ArgSerializer = int32Indexer{}
 
 type int32Indexer struct {
 	offset uintptr
+}
+
+func (i int32Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i int32Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 4
 }
 
-func (i int32Indexer) SizeFromArgs(args ...any) uint64 {
+func (i int32Indexer) SizeFromArg(arg any) uint64 {
 	return 4
 }
 
-func (i int32Indexer) FromArgs(b []byte, args ...any) uint64 {
-	int32ToBytes(int32(reflect.ValueOf(args[0]).Int()), b)
+func (i int32Indexer) FromArg(b []byte, arg any) uint64 {
+	int32ToBytes(int32(reflect.ValueOf(arg).Int()), b)
 	return 4
 }
 
@@ -287,21 +310,26 @@ func int64ToBytes(i int64, b []byte) {
 }
 
 var _ memdb.Indexer = int64Indexer{}
+var _ memdb.ArgSerializer = int64Indexer{}
 
 type int64Indexer struct {
 	offset uintptr
+}
+
+func (i int64Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i int64Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 8
 }
 
-func (i int64Indexer) SizeFromArgs(args ...any) uint64 {
+func (i int64Indexer) SizeFromArg(arg any) uint64 {
 	return 8
 }
 
-func (i int64Indexer) FromArgs(b []byte, args ...any) uint64 {
-	int64ToBytes(reflect.ValueOf(args[0]).Int(), b)
+func (i int64Indexer) FromArg(b []byte, arg any) uint64 {
+	int64ToBytes(reflect.ValueOf(arg).Int(), b)
 	return 8
 }
 
@@ -315,21 +343,26 @@ func uint8ToBytes(i uint8, b []byte) {
 }
 
 var _ memdb.Indexer = uint8Indexer{}
+var _ memdb.ArgSerializer = uint8Indexer{}
 
 type uint8Indexer struct {
 	offset uintptr
+}
+
+func (i uint8Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i uint8Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 1
 }
 
-func (i uint8Indexer) SizeFromArgs(args ...any) uint64 {
+func (i uint8Indexer) SizeFromArg(arg any) uint64 {
 	return 1
 }
 
-func (i uint8Indexer) FromArgs(b []byte, args ...any) uint64 {
-	uint8ToBytes(uint8(reflect.ValueOf(args[0]).Uint()), b)
+func (i uint8Indexer) FromArg(b []byte, arg any) uint64 {
+	uint8ToBytes(uint8(reflect.ValueOf(arg).Uint()), b)
 	return 1
 }
 
@@ -343,21 +376,26 @@ func uint16ToBytes(i uint16, b []byte) {
 }
 
 var _ memdb.Indexer = uint16Indexer{}
+var _ memdb.ArgSerializer = uint16Indexer{}
 
 type uint16Indexer struct {
 	offset uintptr
+}
+
+func (i uint16Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i uint16Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 2
 }
 
-func (i uint16Indexer) SizeFromArgs(args ...any) uint64 {
+func (i uint16Indexer) SizeFromArg(arg any) uint64 {
 	return 2
 }
 
-func (i uint16Indexer) FromArgs(b []byte, args ...any) uint64 {
-	uint16ToBytes(uint16(reflect.ValueOf(args[0]).Uint()), b)
+func (i uint16Indexer) FromArg(b []byte, arg any) uint64 {
+	uint16ToBytes(uint16(reflect.ValueOf(arg).Uint()), b)
 	return 2
 }
 
@@ -371,21 +409,26 @@ func uint32ToBytes(i uint32, b []byte) {
 }
 
 var _ memdb.Indexer = uint32Indexer{}
+var _ memdb.ArgSerializer = uint32Indexer{}
 
 type uint32Indexer struct {
 	offset uintptr
+}
+
+func (i uint32Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i uint32Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 4
 }
 
-func (i uint32Indexer) SizeFromArgs(args ...any) uint64 {
+func (i uint32Indexer) SizeFromArg(arg any) uint64 {
 	return 4
 }
 
-func (i uint32Indexer) FromArgs(b []byte, args ...any) uint64 {
-	uint32ToBytes(uint32(reflect.ValueOf(args[0]).Uint()), b)
+func (i uint32Indexer) FromArg(b []byte, arg any) uint64 {
+	uint32ToBytes(uint32(reflect.ValueOf(arg).Uint()), b)
 	return 4
 }
 
@@ -399,21 +442,26 @@ func uint64ToBytes(i uint64, b []byte) {
 }
 
 var _ memdb.Indexer = uint64Indexer{}
+var _ memdb.ArgSerializer = uint64Indexer{}
 
 type uint64Indexer struct {
 	offset uintptr
+}
+
+func (i uint64Indexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
 }
 
 func (i uint64Indexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return 8
 }
 
-func (i uint64Indexer) SizeFromArgs(args ...any) uint64 {
+func (i uint64Indexer) SizeFromArg(arg any) uint64 {
 	return 8
 }
 
-func (i uint64Indexer) FromArgs(b []byte, args ...any) uint64 {
-	uint64ToBytes(reflect.ValueOf(args[0]).Uint(), b)
+func (i uint64Indexer) FromArg(b []byte, arg any) uint64 {
+	uint64ToBytes(reflect.ValueOf(arg).Uint(), b)
 	return 8
 }
 
@@ -422,11 +470,12 @@ func (i uint64Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	return 8
 }
 
-var idType = reflect.TypeOf(id.ID{})
+var idType = reflect.TypeOf(memdb.ID{})
 
 var _ memdb.Indexer = idIndexer{}
+var _ memdb.Indexer = idIndexer{}
 
-func idToBytes(id id.ID, b []byte) {
+func idToBytes(id memdb.ID, b []byte) {
 	copy(b, id[:])
 }
 
@@ -434,22 +483,26 @@ type idIndexer struct {
 	offset uintptr
 }
 
+func (i idIndexer) Args() []memdb.ArgSerializer {
+	return []memdb.ArgSerializer{i}
+}
+
 func (i idIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
-	return id.Length
+	return memdb.IDLength
 }
 
-func (i idIndexer) SizeFromArgs(args ...any) uint64 {
-	return id.Length
+func (i idIndexer) SizeFromArg(arg any) uint64 {
+	return memdb.IDLength
 }
 
-func (i idIndexer) FromArgs(b []byte, args ...any) uint64 {
-	idToBytes(reflect.ValueOf(args[0]).Convert(idType).Interface().(id.ID), b)
-	return id.Length
+func (i idIndexer) FromArg(b []byte, arg any) uint64 {
+	idToBytes(reflect.ValueOf(arg).Convert(idType).Interface().(memdb.ID), b)
+	return memdb.IDLength
 }
 
 func (i idIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
-	idToBytes(valueByOffset[id.ID](o, i.offset), b)
-	return id.Length
+	idToBytes(valueByOffset[memdb.ID](o, i.offset), b)
+	return memdb.IDLength
 }
 
 func indexerForType(t reflect.Type, offset uintptr) (memdb.Indexer, error) {
@@ -482,43 +535,5 @@ func indexerForType(t reflect.Type, offset uintptr) (memdb.Indexer, error) {
 		return uint64Indexer{offset: offset}, nil
 	default:
 		return nil, errors.Errorf("unsupported type: %s", t)
-	}
-}
-
-type verifyPart struct {
-	o any
-}
-
-type verifyMissing struct {
-	o any
-}
-
-func verify(
-	requireT *require.Assertions,
-	indexer memdb.Indexer,
-	expected []byte,
-	o any, args ...any,
-) {
-	size := indexer.SizeFromArgs(args...)
-	requireT.EqualValues(len(expected), size)
-	b := make([]byte, size)
-	requireT.Equal(size, indexer.FromArgs(b, args...))
-	requireT.Equal(expected, b)
-
-	switch v := o.(type) {
-	case verifyPart:
-		size2 := indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer())
-		requireT.Greater(size2, size)
-		b := make([]byte, size2)
-		requireT.Equal(size2, indexer.FromObject(b, reflect.ValueOf(v.o).UnsafePointer()))
-		requireT.Equal(expected, b[:size])
-	case verifyMissing:
-		requireT.Zero(indexer.SizeFromObject(reflect.ValueOf(v.o).UnsafePointer()))
-	default:
-		size2 := indexer.SizeFromObject(reflect.ValueOf(o).UnsafePointer())
-		requireT.Equal(size, size2)
-		b := make([]byte, size)
-		requireT.Equal(size, indexer.FromObject(b, reflect.ValueOf(o).UnsafePointer()))
-		requireT.Equal(expected, b)
 	}
 }

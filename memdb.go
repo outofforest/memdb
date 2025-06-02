@@ -12,7 +12,6 @@ import (
 	"unsafe"
 
 	"github.com/outofforest/iradix"
-	"github.com/outofforest/memdb/id"
 	"github.com/outofforest/memdb/tree"
 )
 
@@ -45,9 +44,9 @@ func NewMemDB(indexes [][]Index) (*MemDB, error) {
 		t := TableSchema{}
 		schema = append(schema, t)
 
-		t[id.IndexID] = &IndexSchema{
+		t[IDIndexID] = &IndexSchema{
 			Unique:  true,
-			Indexer: id.Indexer{},
+			Indexer: IDIndexer{},
 		}
 
 		for _, index := range tableIndexes {
