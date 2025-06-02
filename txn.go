@@ -258,32 +258,6 @@ func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) 
 	return iter.Next(), nil
 }
 
-// Last is used to return the last matching object for
-// the given constraints on the index.
-//
-// Note that all values read in the transaction form a consistent snapshot
-// from the time when the transaction was created.
-func (txn *Txn) Last(table, index uint64, args ...any) (*reflect.Value, error) {
-	// Get the index value
-	indexSchema, val, err := txn.getIndexValue(table, index, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the index itself
-	indexTxn := txn.readableIndex(indexSchema.id, false)
-
-	// Do an exact lookup
-	if indexSchema.Unique && val != nil {
-		return indexTxn.Get(val), nil
-	}
-
-	// Handle non-unique index by using an iterator and getting the last value
-	iter := indexTxn.Root().ReverseIterator()
-	iter.SeekPrefix(val)
-	return iter.Previous(), nil
-}
-
 // Get is used to construct a ResultIterator over all the rows that match the
 // given constraints of an index. The index values must match exactly (this
 // is not a range-based or prefix-based lookup) by default.
@@ -313,25 +287,23 @@ func (txn *Txn) Get(table, index uint64, args ...any) (ResultIterator, error) {
 	return iter, nil
 }
 
-// GetReverse is used to construct a Reverse ResultIterator over all the
-// rows that match the given constraints of an index.
-// The returned ResultIterator's Next() will return the next Previous value.
-//
-// See the documentation on Get for details on arguments.
-//
+// LowerBound is used to construct a ResultIterator over all the range of
+// rows that have an index value greater than or equal to the provided args.
+// Calling this then iterating until the rows are larger than required allows
+// range scans within an index.
 // See the documentation for ResultIterator to understand the behaviour of the
 // returned ResultIterator.
-func (txn *Txn) GetReverse(table, index uint64, args ...any) (ResultIterator, error) {
-	indexIter, val, err := txn.getIndexIteratorReverse(table, index, args...)
+func (txn *Txn) LowerBound(table, index uint64, args ...any) (ResultIterator, error) {
+	indexIter, val, err := txn.getIndexIterator(table, index, args...)
 	if err != nil {
 		return nil, err
 	}
 
 	// Seek the iterator to the appropriate sub-set
-	indexIter.SeekPrefix(val)
+	indexIter.SeekLowerBound(val)
 
 	// Create an iterator
-	iter := &radixReverseIterator{
+	iter := &radixIterator{
 		iter: indexIter,
 	}
 	return iter, nil
@@ -410,25 +382,6 @@ func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iter
 	return indexIter, val, nil
 }
 
-func (txn *Txn) getIndexIteratorReverse(
-	table, index uint64,
-	args ...any,
-) (*iradix.ReverseIterator[reflect.Value], []byte, error) {
-	// Get the index value to scan.
-	indexSchema, val, err := txn.getIndexValue(table, index, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Get the index itself.
-	indexTxn := txn.readableIndex(indexSchema.id, true)
-	indexRoot := indexTxn.Root()
-
-	// Get an iterator over the index.
-	indexIter := indexRoot.ReverseIterator()
-	return indexIter, val, nil
-}
-
 // ResultIterator is used to iterate over a list of results from a query on a table.
 //
 // When a ResultIterator is created from a write transaction, the results from
@@ -461,12 +414,4 @@ type radixIterator struct {
 
 func (r *radixIterator) Next() *reflect.Value {
 	return r.iter.Next()
-}
-
-type radixReverseIterator struct {
-	iter *iradix.ReverseIterator[reflect.Value]
-}
-
-func (r *radixReverseIterator) Next() *reflect.Value {
-	return r.iter.Previous()
 }
