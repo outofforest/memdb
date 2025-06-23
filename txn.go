@@ -412,6 +412,7 @@ type ResultIterator interface {
 	// Next returns the next result from the iterator. If there are no more results
 	// nil is returned.
 	Next() *reflect.Value
+	Back(count uint64)
 }
 
 // radixIterator is used to wrap an underlying iradix iterator.
@@ -423,4 +424,8 @@ type radixIterator struct {
 
 func (r *radixIterator) Next() *reflect.Value {
 	return r.iter.Next()
+}
+
+func (r *radixIterator) Back(count uint64) {
+	r.iter.Back(count)
 }
