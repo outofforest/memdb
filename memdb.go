@@ -85,16 +85,14 @@ func (db *MemDB) getRoot() *tree.Tree[iradix.Txn[reflect.Value]] {
 // Txn is used to start a new transaction in either read or write mode.
 // There can only be a single concurrent writer, but any number of readers.
 func (db *MemDB) Txn(write bool) *Txn {
-	root := db.getRoot()
 	if write {
 		db.writer.Lock()
-		root = root.Next()
 	}
 
 	return &Txn{
 		db:      db,
 		write:   write,
-		rootTxn: root,
+		rootTxn: db.getRoot().Next(),
 	}
 }
 

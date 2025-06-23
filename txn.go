@@ -237,7 +237,7 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error)
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
 func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) {
-	iter, err := txn.getIndexIterator(table, index, args...)
+	iter, err := txn.getIndexIterator(false, table, index, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) 
 // See the documentation for ResultIterator to understand the behaviour of the
 // returned ResultIterator.
 func (txn *Txn) Iterator(table, index uint64, args ...any) (ResultIterator, error) {
-	indexIter, err := txn.getIndexIterator(table, index, args...)
+	indexIter, err := txn.getIndexIterator(true, table, index, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ const (
 	Back
 )
 
-func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], error) {
+func (txn *Txn) getIndexIterator(clone bool, table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], error) {
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
@@ -343,7 +343,7 @@ func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iter
 		numOfArgs++
 	}
 
-	indexTxn := txn.readableIndex(indexSchema.id, true)
+	indexTxn := txn.readableIndex(indexSchema.id, clone)
 	indexRoot := indexTxn.Root()
 
 	// Iterator an iterator over the index.
