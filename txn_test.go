@@ -484,6 +484,41 @@ func TestTxn_LowerBound(t *testing.T) {
 	}
 }
 
+func TestTxn_Back(t *testing.T) {
+	rows := []TestObject{
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x01}, Foo: "1"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x02}, Foo: "2"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x04}, Foo: "3"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x00, 0x05}, Foo: "4"},
+		{ID: memdb.ID{0x00, 0x00, 0x00, 0x01, 0x00}, Foo: "5"},
+		{ID: memdb.ID{0x01, 0x00, 0x00, 0x01, 0x00}, Foo: "6"},
+	}
+
+	db := testDB(t)
+
+	txn := db.Txn(true)
+	for _, row := range rows {
+		_, err := txn.Insert(0, toReflectValue(row))
+		require.NoError(t, err)
+	}
+	txn.Commit()
+
+	txn = db.Txn(false)
+	defer txn.Abort()
+	iterator, err := txn.Iterator(0, 0, memdb.From, rows[5].ID)
+	require.NoError(t, err)
+
+	iterator.Back(3)
+
+	// Now range scan and built a result set
+	result := []TestObject{}
+	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
+		result = append(result, fromReflectValue[TestObject](obj))
+	}
+
+	require.Equal(t, rows[2:], result)
+}
+
 func testDB(t *testing.T) *memdb.MemDB {
 	db, err := memdb.NewMemDB(testValidSchema())
 	if err != nil {
