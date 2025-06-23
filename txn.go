@@ -237,23 +237,11 @@ func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error)
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
 func (txn *Txn) First(table, index uint64, args ...any) (*reflect.Value, error) {
-	// Iterator the index value
-	indexSchema, val, _, err := txn.getIndexValue(table, index, args...)
+	iter, err := txn.getIndexIterator(table, index, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Iterator the index itself
-	indexTxn := txn.readableIndex(indexSchema.id, false)
-
-	// Do an exact lookup
-	if indexSchema.Unique && val != nil {
-		return indexTxn.Get(val), nil
-	}
-
-	// Handle non-unique index by using an iterator and getting the first value
-	iter := indexTxn.Root().Iterator()
-	iter.SeekPrefix(val)
 	return iter.Next(), nil
 }
 
@@ -309,16 +297,19 @@ func (txn *Txn) writableIndex(indexID uint64) *iradix.Txn[reflect.Value] {
 }
 
 // Operator describes the matching algorithm applied to the following arguments.
-type Operator int
+type Operator uint64
 
-// From means that following arguments will be used to execute lower bound matching.
-const From Operator = iota
+const (
+	// From means that following arguments will be used to execute lower bound matching.
+	From Operator = iota + 1
 
-// getIndexValue is used to get the IndexSchema and the value
-// used to scan the index given the parameters.
-func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, []byte, uint64, error) {
+	// Back means that the following argument is an integer used to move the iterator back.
+	Back
+)
+
+func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], error) {
 	if table >= uint64(len(txn.db.schema)) {
-		return nil, nil, 0, errors.Errorf("invalid table '%d'", table)
+		return nil, errors.Errorf("invalid table '%d'", table)
 	}
 	// Iterator the table schema.
 	tableSchema := txn.db.schema[table]
@@ -326,7 +317,7 @@ func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, [
 	// Iterator the index schema.
 	indexSchema, ok := tableSchema[index]
 	if !ok {
-		return nil, nil, 0, errors.Errorf("invalid index '%d'", index)
+		return nil, errors.Errorf("invalid index '%d'", index)
 	}
 
 	// Iterator the exact match index.
@@ -334,59 +325,82 @@ func (txn *Txn) getIndexValue(table, index uint64, args ...any) (*IndexSchema, [
 
 	var numOfArgs int
 	var keySize uint64
-	for _, a := range args {
-		if _, ok := a.(Operator); ok {
+	for i, a := range args {
+		if op, ok := a.(Operator); ok {
+			if op == Back {
+				if len(args) != i+2 {
+					return nil, errors.New("invalid argument count")
+				}
+				break
+			}
 			continue
 		}
 		if numOfArgs == len(argDefs) {
-			return nil, nil, 0, errors.Errorf("too many arguments, received: %d, acceptable: %d", len(args),
+			return nil, errors.Errorf("too many arguments, received: %d, acceptable: %d", len(args),
 				len(argDefs))
 		}
 		keySize += argDefs[numOfArgs].SizeFromArg(a)
 		numOfArgs++
 	}
 
-	if numOfArgs == 0 {
-		return indexSchema, nil, 0, nil
-	}
-	if keySize == 0 {
-		return indexSchema, nil, 0, errors.Errorf("empty key")
-	}
-
-	b := make([]byte, keySize)
-	splitIndex := keySize
-	var n uint64
-	var argI int
-	for _, a := range args {
-		if _, ok := a.(Operator); ok {
-			splitIndex = n
-			continue
-		}
-		n += argDefs[argI].FromArg(b[n:], a)
-		argI++
-	}
-
-	return indexSchema, b, splitIndex, nil
-}
-
-func (txn *Txn) getIndexIterator(table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], error) {
-	// Iterator the index value to scan.
-	indexSchema, val, splitIndex, err := txn.getIndexValue(table, index, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Iterator the index itself.
 	indexTxn := txn.readableIndex(indexSchema.id, true)
 	indexRoot := indexTxn.Root()
 
 	// Iterator an iterator over the index.
 	indexIter := indexRoot.Iterator()
-	if splitIndex > 0 {
-		indexIter.SeekPrefix(val[:splitIndex])
+
+	if numOfArgs == 0 {
+		return indexIter, nil
 	}
-	if splitIndex < uint64(len(val)) {
-		indexIter.SeekLowerBound(val[splitIndex:])
+	if keySize == 0 {
+		return nil, errors.Errorf("empty key")
+	}
+
+	key := make([]byte, keySize)
+	fromArgs := keySize
+	var backCount uint64
+	var lastOperator Operator
+	var n uint64
+	var argI int
+
+loop:
+	for i, a := range args {
+		if op, ok := a.(Operator); ok {
+			if op <= lastOperator {
+				return nil, errors.New("invalid operator")
+			}
+
+			switch op {
+			case From:
+				fromArgs = n
+			case Back:
+				if count, ok := args[i+1].(int); ok {
+					backCount = uint64(count)
+					break loop
+				}
+				count, ok := args[i+1].(uint64)
+				if !ok {
+					return nil, errors.New("invalid count")
+				}
+				backCount = count
+				break loop
+			default:
+				return nil, errors.New("invalid operator")
+			}
+			continue
+		}
+		n += argDefs[argI].FromArg(key[n:], a)
+		argI++
+	}
+
+	if fromArgs > 0 {
+		indexIter.SeekPrefix(key[:fromArgs])
+	}
+	if fromArgs < uint64(len(key)) {
+		indexIter.SeekLowerBound(key[fromArgs:])
+	}
+	if backCount > 0 {
+		indexIter.Back(backCount)
 	}
 	return indexIter, nil
 }
@@ -412,7 +426,6 @@ type ResultIterator interface {
 	// Next returns the next result from the iterator. If there are no more results
 	// nil is returned.
 	Next() *reflect.Value
-	Back(count uint64)
 }
 
 // radixIterator is used to wrap an underlying iradix iterator.
@@ -424,8 +437,4 @@ type radixIterator struct {
 
 func (r *radixIterator) Next() *reflect.Value {
 	return r.iter.Next()
-}
-
-func (r *radixIterator) Back(count uint64) {
-	r.iter.Back(count)
 }

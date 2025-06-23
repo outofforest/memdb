@@ -505,10 +505,8 @@ func TestTxn_Back(t *testing.T) {
 
 	txn = db.Txn(false)
 	defer txn.Abort()
-	iterator, err := txn.Iterator(0, 0, memdb.From, rows[5].ID)
+	iterator, err := txn.Iterator(0, 0, memdb.From, rows[5].ID, memdb.Back, 3)
 	require.NoError(t, err)
-
-	iterator.Back(3)
 
 	// Now range scan and built a result set
 	result := []TestObject{}
