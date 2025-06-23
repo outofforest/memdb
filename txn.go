@@ -307,7 +307,11 @@ const (
 	Back
 )
 
-func (txn *Txn) getIndexIterator(clone bool, table, index uint64, args ...any) (*iradix.Iterator[reflect.Value], error) {
+func (txn *Txn) getIndexIterator(
+	clone bool,
+	table, index uint64,
+	args ...any,
+) (*iradix.Iterator[reflect.Value], error) {
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
