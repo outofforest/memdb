@@ -9,6 +9,14 @@ import (
 	"github.com/outofforest/memdb"
 )
 
+// MultiIndex compiles many indices into a single one.
+type MultiIndex struct {
+	id         uint64
+	entityType reflect.Type
+	indexer    memdb.Indexer
+	unique     bool
+}
+
 // NewMultiIndex creates new multiindex.
 func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 	if len(subIndices) == 0 {
@@ -41,14 +49,6 @@ func NewMultiIndex(subIndices ...memdb.Index) *MultiIndex {
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
-}
-
-// MultiIndex compiles many indices into a single one.
-type MultiIndex struct {
-	id         uint64
-	entityType reflect.Type
-	indexer    memdb.Indexer
-	unique     bool
 }
 
 // ID returns ID of the index.

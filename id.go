@@ -30,7 +30,7 @@ func NewID[T idConstraint]() T {
 	return id
 }
 
-var idType = reflect.TypeOf(ID{})
+var idType = reflect.TypeFor[ID]()
 
 var _ Indexer = IDIndexer{}
 var _ ArgSerializer = IDIndexer{}

@@ -9,6 +9,14 @@ import (
 	"github.com/outofforest/memdb"
 )
 
+// IfIndex indexes those elements from another index for which f returns true.
+type IfIndex[T any] struct {
+	id       uint64
+	subIndex memdb.Index
+	indexer  memdb.Indexer
+	unique   bool
+}
+
 // NewIfIndex creates new conditional index.
 func NewIfIndex[T any](subIndex memdb.Index, f func(o *T) bool) *IfIndex[T] {
 	var v T
@@ -27,14 +35,6 @@ func NewIfIndex[T any](subIndex memdb.Index, f func(o *T) bool) *IfIndex[T] {
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
-}
-
-// IfIndex indexes those elements from another index for which f returns true.
-type IfIndex[T any] struct {
-	id       uint64
-	subIndex memdb.Index
-	indexer  memdb.Indexer
-	unique   bool
 }
 
 // ID returns ID of the index.

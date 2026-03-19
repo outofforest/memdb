@@ -7,6 +7,13 @@ import (
 	"github.com/outofforest/memdb"
 )
 
+// UniqueIndex marks the subindex definition as unique.
+type UniqueIndex struct {
+	id       uint64
+	subIndex memdb.Index
+	indexer  memdb.Indexer
+}
+
 // NewUniqueIndex creates new unique index.
 func NewUniqueIndex(subIndex memdb.Index) *UniqueIndex {
 	index := &UniqueIndex{
@@ -15,13 +22,6 @@ func NewUniqueIndex(subIndex memdb.Index) *UniqueIndex {
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
-}
-
-// UniqueIndex marks the subindex definition as unique.
-type UniqueIndex struct {
-	id       uint64
-	subIndex memdb.Index
-	indexer  memdb.Indexer
 }
 
 // ID returns ID of the index.
