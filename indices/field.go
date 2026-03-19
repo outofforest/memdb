@@ -11,6 +11,13 @@ import (
 	"github.com/outofforest/memdb"
 )
 
+// FieldIndex defines index indexing entities by struct field.
+type FieldIndex struct {
+	id         uint64
+	entityType reflect.Type
+	indexer    memdb.Indexer
+}
+
 // NewFieldIndex defines new field index.
 func NewFieldIndex(ePtr, fieldPtr any) *FieldIndex {
 	ePtrType := reflect.TypeOf(ePtr)
@@ -52,13 +59,6 @@ func NewFieldIndex(ePtr, fieldPtr any) *FieldIndex {
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
-}
-
-// FieldIndex defines index indexing entities by struct field.
-type FieldIndex struct {
-	id         uint64
-	entityType reflect.Type
-	indexer    memdb.Indexer
 }
 
 // ID returns ID of the index.
@@ -169,7 +169,7 @@ func (i stringIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 
 var (
 	secondsOffset = time.Time{}.Unix()
-	timeType      = reflect.TypeOf(time.Time{})
+	timeType      = reflect.TypeFor[time.Time]()
 )
 
 func timeToBytes(t time.Time, b []byte) {
@@ -470,7 +470,7 @@ func (i uint64Indexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	return 8
 }
 
-var idType = reflect.TypeOf(memdb.ID{})
+var idType = reflect.TypeFor[memdb.ID]()
 
 var _ memdb.Indexer = idIndexer{}
 var _ memdb.Indexer = idIndexer{}

@@ -7,6 +7,14 @@ import (
 	"github.com/outofforest/memdb"
 )
 
+// ReverseIndex reverses the order of elements in the index by reversing all the bits of the index key.
+type ReverseIndex struct {
+	id       uint64
+	subIndex memdb.Index
+	indexer  memdb.Indexer
+	unique   bool
+}
+
 // NewReverseIndex creates new order reversing index.
 func NewReverseIndex(subIndex memdb.Index) *ReverseIndex {
 	schema := subIndex.Schema()
@@ -19,14 +27,6 @@ func NewReverseIndex(subIndex memdb.Index) *ReverseIndex {
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
-}
-
-// ReverseIndex reverses the order of elements in the index by reversing all the bits of the index key.
-type ReverseIndex struct {
-	id       uint64
-	subIndex memdb.Index
-	indexer  memdb.Indexer
-	unique   bool
 }
 
 // ID returns ID of the index.

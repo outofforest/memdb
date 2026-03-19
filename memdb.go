@@ -77,11 +77,6 @@ func (db *MemDB) DBSchema() DBSchema {
 	return db.schema
 }
 
-// getRoot is used to do an atomic load of the root pointer.
-func (db *MemDB) getRoot() *tree.Tree[iradix.Txn[reflect.Value]] {
-	return (*tree.Tree[iradix.Txn[reflect.Value]])(atomic.LoadPointer(&db.root))
-}
-
 // Txn is used to start a new transaction in either read or write mode.
 // There can only be a single concurrent writer, but any number of readers.
 func (db *MemDB) Txn(write bool) *Txn {
@@ -127,4 +122,9 @@ func (db *MemDB) initialize() {
 			root.Set(indexID, iradix.NewTxn(iradix.New[reflect.Value]()))
 		}
 	}
+}
+
+// getRoot is used to do an atomic load of the root pointer.
+func (db *MemDB) getRoot() *tree.Tree[iradix.Txn[reflect.Value]] {
+	return (*tree.Tree[iradix.Txn[reflect.Value]])(atomic.LoadPointer(&db.root))
 }

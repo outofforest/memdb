@@ -23,7 +23,7 @@ func TestMultiIndexer(t *testing.T) {
 
 	index := NewMultiIndex(index1, index2)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeOf(o{}), index.Type())
+	requireT.IsType(reflect.TypeFor[o](), index.Type())
 	requireT.False(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
@@ -65,7 +65,7 @@ func TestMultiIndexerWithMultiSubIndexer3Arguments(t *testing.T) {
 
 	index := NewMultiIndex(index3, index4)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeOf(o{}), index.Type())
+	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
 	requireT.Len(indexer.Args(), 3)
@@ -131,7 +131,7 @@ func TestMultiIndexerWithIfSubindex(t *testing.T) {
 
 	index := NewMultiIndex(index1, index3)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeOf(o{}), index.Type())
+	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
 	requireT.Len(indexer.Args(), 2)
@@ -162,7 +162,7 @@ func TestMultiIndexerWithUniqueSubindex(t *testing.T) {
 
 	index := NewMultiIndex(index1, index3)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeOf(o{}), index.Type())
+	requireT.IsType(reflect.TypeFor[o](), index.Type())
 	requireT.True(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(*multiIndexer)
