@@ -52,6 +52,7 @@ type MemDB struct {
 
 // NewMemDB creates a new MemDB with the given schema.
 func NewMemDB(config Config) (*MemDB, error) {
+	entities := []reflect.Type{}
 	indicesByEntity := map[reflect.Type][]Index{}
 	treeConstructors := map[reflect.Type]func() any{}
 	for _, c := range config.treeConstructors {
@@ -59,6 +60,7 @@ func NewMemDB(config Config) (*MemDB, error) {
 		if _, exists := indicesByEntity[eType]; exists {
 			return nil, fmt.Errorf("duplicated entity %s", eType)
 		}
+		entities = append(entities, eType)
 		indicesByEntity[eType] = nil
 		treeConstructors[eType] = eTreeConstructor
 	}
@@ -78,7 +80,7 @@ func NewMemDB(config Config) (*MemDB, error) {
 	}
 
 	var indexID uint64
-	for eT, indices := range indicesByEntity {
+	for _, eT := range entities {
 		t := TableSchema{}
 		db.schema = append(db.schema, t)
 		treeConstructor := treeConstructors[eT]
@@ -91,7 +93,7 @@ func NewMemDB(config Config) (*MemDB, error) {
 		}
 		root.Set(indexID, treeConstructor())
 
-		for _, index := range indices {
+		for _, index := range indicesByEntity[eT] {
 			indexID++
 			indexSchema := index.Schema()
 			indexSchema.id = indexID
