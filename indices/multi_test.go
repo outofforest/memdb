@@ -1,7 +1,6 @@
 package indices
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,10 +22,9 @@ func TestMultiIndexer(t *testing.T) {
 
 	index := NewMultiIndex(index1, index2)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 	requireT.False(index.Schema().Unique)
 
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 5
@@ -45,7 +43,7 @@ func TestMultiIndexerNotAllArguments(t *testing.T) {
 
 	index := NewMultiIndex(index1, index2)
 
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 
 	v.Value1 = 5
 	v.Value4 = xyz
@@ -65,9 +63,8 @@ func TestMultiIndexerWithMultiSubIndexer3Arguments(t *testing.T) {
 
 	index := NewMultiIndex(index3, index4)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 	requireT.Len(indexer.Args(), 3)
 
 	v.Value1 = 5
@@ -89,7 +86,7 @@ func TestMultiIndexerWithMultiSubIndexer2Arguments(t *testing.T) {
 	index4 := NewMultiIndex(index1, index2)
 
 	index := NewMultiIndex(index3, index4)
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 
 	v.Value1 = 5
 	v.Value4 = xyz
@@ -111,7 +108,7 @@ func TestMultiIndexerWithMultiSubIndexer1Argument(t *testing.T) {
 
 	index := NewMultiIndex(index3, index4)
 
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 
 	v.Value1 = 5
 	v.Value4 = xyz
@@ -131,9 +128,8 @@ func TestMultiIndexerWithIfSubindex(t *testing.T) {
 
 	index := NewMultiIndex(index1, index3)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
@@ -162,10 +158,9 @@ func TestMultiIndexerWithUniqueSubindex(t *testing.T) {
 
 	index := NewMultiIndex(index1, index3)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 	requireT.True(index.Schema().Unique)
 
-	indexer := index.Schema().Indexer.(*multiIndexer)
+	indexer := index.Schema().Indexer.(*multiIndexer[o])
 	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
@@ -183,19 +178,6 @@ func TestMultiErrorIfNoSubIndices(t *testing.T) {
 	requireT := require.New(t)
 
 	requireT.Panics(func() {
-		NewMultiIndex()
-	})
-}
-
-func TestMultiErrorOnTypeMismatch(t *testing.T) {
-	requireT := require.New(t)
-	v1 := &o{}
-	v2 := &subO1{}
-
-	index1 := NewFieldIndex(v1, &v1.Value1)
-	index2 := NewFieldIndex(v2, &v2.Value3)
-
-	requireT.Panics(func() {
-		NewMultiIndex(index1, index2)
+		NewMultiIndex[o]()
 	})
 }

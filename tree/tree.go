@@ -24,11 +24,12 @@ func (t *Tree[V]) Next() *Tree[V] {
 }
 
 // Get gets value from the tree.
-func (t *Tree[V]) Get(key uint64) (*V, bool) {
+func (t *Tree[V]) Get(key uint64) (V, bool) {
 	n := t.root
 	for {
 		if n == nil {
-			return nil, false
+			var o V
+			return o, false
 		}
 
 		if n.key == key {
@@ -47,7 +48,7 @@ func (t *Tree[V]) Get(key uint64) (*V, bool) {
 }
 
 // Set sets value in the tree.
-func (t *Tree[V]) Set(key uint64, value *V) {
+func (t *Tree[V]) Set(key uint64, value V) {
 	n := &t.root
 	for {
 		if *n == nil {
@@ -87,7 +88,7 @@ type node[V any] struct {
 	nodeRevision  uint64
 	valueRevision uint64
 	key           uint64
-	value         *V
+	value         V
 	left          *node[V]
 	right         *node[V]
 }

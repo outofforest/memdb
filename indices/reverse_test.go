@@ -3,7 +3,6 @@ package indices
 import (
 	"crypto/rand"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,10 +18,8 @@ func TestReverseIndexer(t *testing.T) {
 
 	index := NewReverseIndex(subIndex)
 	requireT.NotZero(index.ID())
-	requireT.Equal(subIndex.Type(), index.Type())
 	requireT.NotEqual(subIndex.ID(), index.ID())
 	requireT.False(index.Schema().Unique)
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
 	indexer := index.Schema().Indexer.(reverseIndexer)
 	requireT.Len(indexer.Args(), 1)
@@ -47,7 +44,6 @@ func TestReverseIndexerUnique(t *testing.T) {
 
 	index := NewReverseIndex(subIndex)
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 	requireT.True(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(reverseIndexer)

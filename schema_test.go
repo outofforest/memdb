@@ -11,7 +11,7 @@ import (
 )
 
 func TestDBSchema_Validate(t *testing.T) {
-	if _, err := memdb.NewMemDB([][]memdb.Index{}); err == nil {
+	if _, err := memdb.NewMemDB(memdb.Config{}); err == nil {
 		t.Fatalf("should not validate, empty")
 	}
 
@@ -44,10 +44,11 @@ var (
 	indexFoo = indices.NewFieldIndex(&o, &o.Foo)
 )
 
-func testValidSchema() [][]memdb.Index {
-	return [][]memdb.Index{
-		{
-			indexFoo,
-		},
+func testValidSchema() memdb.Config {
+	c := memdb.Config{
+		Indices: []memdb.Index{indexFoo},
 	}
+	memdb.ConfigureEntity[TestObject](&c)
+
+	return c
 }

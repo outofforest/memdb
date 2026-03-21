@@ -93,7 +93,6 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i := NewFieldIndex(v, &v.Value1)
 	requireT.NotZero(i.ID())
-	requireT.IsType(reflect.TypeFor[o](), i.Type())
 	requireT.Equal(uint64Indexer{
 		offset: 0x10,
 	}, i.Schema().Indexer)
@@ -384,54 +383,59 @@ func TestEntityUpdateWithFieldIndex(t *testing.T) {
 	var v o
 	index := NewFieldIndex(&v, &v.Value1)
 
-	db, err := memdb.NewMemDB([][]memdb.Index{{index}})
+	c := memdb.Config{
+		Indices: []memdb.Index{index},
+	}
+	memdb.ConfigureEntity[o](&c)
+
+	db, err := memdb.NewMemDB(c)
 	requireT.NoError(err)
 	txn := db.Txn(true)
 
 	eID := memdb.NewID[memdb.ID]()
-	e := reflect.ValueOf(&o{
+	e := &o{
 		ID:     eID,
 		Value1: 1,
-	})
+	}
 
-	old, err := txn.Insert(0, &e)
+	old, err := memdb.Insert(txn, 0, e)
 	requireT.NoError(err)
 	requireT.Nil(old)
 	txn.Commit()
 
 	txn = db.Txn(true)
-	e2, err := txn.First(0, memdb.IDIndexID, eID)
+	e2, err := memdb.First[o](txn, 0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
-	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
+	requireT.Equal(e, e2)
 
-	e3, err := txn.First(0, index.ID(), uint64(1))
+	e3, err := memdb.First[o](txn, 0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.NotNil(e3)
 	requireT.Equal(e2, e3)
 
-	e4 := reflect.ValueOf(&o{
+	e4 := &o{
 		ID:     eID,
 		Value1: 2,
-	})
+	}
 
-	old, err = txn.Insert(0, &e4)
+	old, err = memdb.Insert(txn, 0, e4)
 	requireT.NoError(err)
-	requireT.Equal(&e, old)
+	requireT.Equal(e, old)
 	txn.Commit()
 
 	txn = db.Txn(false)
-	e2, err = txn.First(0, memdb.IDIndexID, eID)
+	e2, err = memdb.First[o](txn, 0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
-	requireT.Equal(e4.Elem().Interface(), e2.Elem().Interface())
+	requireT.Equal(e4, e2)
 
-	e3, err = txn.First(0, index.ID(), uint64(2))
+	e3, err = memdb.First[o](txn, 0, index.ID(), uint64(2))
 	requireT.NoError(err)
 	requireT.NotNil(e3)
 	requireT.Equal(e2, e3)
 
-	e3, err = txn.First(0, index.ID(), uint64(1))
+	e3, err = memdb.First[o](txn, 0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.Nil(e3)
 }
@@ -442,43 +446,48 @@ func TestEntityDeleteWithFieldIndex(t *testing.T) {
 	var v o
 	index := NewFieldIndex(&v, &v.Value1)
 
-	db, err := memdb.NewMemDB([][]memdb.Index{{index}})
+	c := memdb.Config{
+		Indices: []memdb.Index{index},
+	}
+	memdb.ConfigureEntity[o](&c)
+
+	db, err := memdb.NewMemDB(c)
 	requireT.NoError(err)
 	txn := db.Txn(true)
 
 	eID := memdb.NewID[memdb.ID]()
-	e := reflect.ValueOf(&o{
+	e := &o{
 		ID:     eID,
 		Value1: 1,
-	})
+	}
 
-	old, err := txn.Insert(0, &e)
+	old, err := memdb.Insert(txn, 0, e)
 	requireT.NoError(err)
 	requireT.Nil(old)
 	txn.Commit()
 
 	txn = db.Txn(true)
-	e2, err := txn.First(0, memdb.IDIndexID, eID)
+	e2, err := memdb.First[o](txn, 0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
-	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
+	requireT.Equal(e, e2)
 
-	e3, err := txn.First(0, index.ID(), uint64(1))
+	e3, err := memdb.First[o](txn, 0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.NotNil(e3)
 	requireT.Equal(e2, e3)
 
-	old, err = txn.Delete(0, &e)
+	old, err = memdb.Delete(txn, 0, e)
 	requireT.NoError(err)
-	requireT.Equal(&e, old)
+	requireT.Equal(e, old)
 	txn.Commit()
 
 	txn = db.Txn(false)
-	e2, err = txn.First(0, memdb.IDIndexID, eID)
+	e2, err = memdb.First[o](txn, 0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.Nil(e2)
 
-	e3, err = txn.First(0, index.ID(), uint64(1))
+	e3, err = memdb.First[o](txn, 0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.Nil(e3)
 }

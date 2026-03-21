@@ -4,7 +4,6 @@
 package memdb_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,26 +30,26 @@ func TestTxn_Isolation(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	oldV, err := txn1.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn1, 0, obj)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
-	oldV, err = txn1.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn1, 0, obj2)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
-	oldV, err = txn1.Insert(0, toReflectValue(obj3))
+	oldV, err = memdb.Insert(txn1, 0, obj3)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
 	// Results should show up in this transaction
-	raw, err := txn1.First(0, memdb.IDIndexID)
+	raw, err := memdb.First[TestObject](txn1, 0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -62,7 +61,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn2 := db.Txn(false)
 
 	// Nothing should show up in this transaction
-	raw, err = txn2.First(0, memdb.IDIndexID)
+	raw, err = memdb.First[TestObject](txn2, 0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -74,7 +73,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn1.Commit()
 
 	// Nothing should show up in this transaction
-	raw, err = txn2.First(0, memdb.IDIndexID)
+	raw, err = memdb.First[TestObject](txn2, 0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -86,7 +85,7 @@ func TestTxn_Isolation(t *testing.T) {
 	txn3 := db.Txn(false)
 
 	// Results should show up in this transaction
-	raw, err = txn3.First(0, memdb.IDIndexID)
+	raw, err = memdb.First[TestObject](txn3, 0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -113,19 +112,19 @@ func TestTxn_DontCommit(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	oldV, err := txn1.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn1, 0, obj)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
-	oldV, err = txn1.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn1, 0, obj2)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
-	oldV, err = txn1.Insert(0, toReflectValue(obj3))
+	oldV, err = memdb.Insert(txn1, 0, obj3)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -137,7 +136,7 @@ func TestTxn_DontCommit(t *testing.T) {
 	txn2 := db.Txn(false)
 
 	// Nothing should show up in this transaction
-	raw, err := txn2.First(0, memdb.IDIndexID)
+	raw, err := memdb.First[TestObject](txn2, 0, memdb.IDIndexID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -152,37 +151,35 @@ func TestComplexDB(t *testing.T) {
 	txn := db.Txn(false) // read only
 
 	// Iterator using a full name
-	raw, err := txn.First(peopleTableID, personNameIndex.ID(), "Armon", "Dadgar")
+	person, err := memdb.First[TestPerson](txn, peopleTableID, personNameIndex.ID(), "Armon", "Dadgar")
 	require.NoError(t, err)
-	if raw == nil {
+	if person == nil {
 		t.Fatalf("should get person")
 	}
 
-	raw, err = txn.First(peopleTableID, personAgeIndex.ID(), uint8(27))
+	person, err = memdb.First[TestPerson](txn, peopleTableID, personAgeIndex.ID(), uint8(27))
 	require.NoError(t, err)
-	if raw == nil {
+	if person == nil {
 		t.Fatalf("should get person")
 	}
 
-	raw, err = txn.First(peopleTableID, personNegativeAgeIndex.ID(), int8(-26))
+	person, err = memdb.First[TestPerson](txn, peopleTableID, personNegativeAgeIndex.ID(), int8(-26))
 	require.NoError(t, err)
-	if raw == nil {
+	if person == nil {
 		t.Fatalf("should get person")
 	}
 
-	person := fromReflectValue[TestPerson](raw)
 	if person.First != "Armon" {
 		t.Fatalf("wrong person!")
 	}
 
 	// Where in the world is mitchell hashimoto?
-	raw, err = txn.First(peopleTableID, personNameIndex.ID(), "Mitchell")
+	person, err = memdb.First[TestPerson](txn, peopleTableID, personNameIndex.ID(), "Mitchell")
 	require.NoError(t, err)
-	if raw == nil {
+	if person == nil {
 		t.Fatalf("should get person")
 	}
 
-	person = fromReflectValue[TestPerson](raw)
 	if person.First != "Mitchell" {
 		t.Fatalf("wrong person!")
 	}
@@ -250,33 +247,33 @@ func testPopulateData(t *testing.T, db *memdb.MemDB) {
 	visit2 := testVisit(person2.ID, place2.ID)
 
 	// Insert it all
-	oldV, err := txn.Insert(peopleTableID, toReflectValue(person1))
+	oldPerson, err := memdb.Insert(txn, peopleTableID, &person1)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldPerson)
 
-	oldV, err = txn.Insert(peopleTableID, toReflectValue(person2))
+	oldPerson, err = memdb.Insert(txn, peopleTableID, &person2)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldPerson)
 
-	oldV, err = txn.Insert(placesTableID, toReflectValue(place1))
+	oldPlace, err := memdb.Insert(txn, placesTableID, &place1)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldPlace)
 
-	oldV, err = txn.Insert(placesTableID, toReflectValue(place2))
+	oldPlace, err = memdb.Insert(txn, placesTableID, &place2)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldPlace)
 
-	oldV, err = txn.Insert(placesTableID, toReflectValue(place3))
+	oldPlace, err = memdb.Insert(txn, placesTableID, &place3)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldPlace)
 
-	oldV, err = txn.Insert(visitsTableID, toReflectValue(visit1))
+	oldVisit, err := memdb.Insert(txn, visitsTableID, &visit1)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldVisit)
 
-	oldV, err = txn.Insert(visitsTableID, toReflectValue(visit2))
+	oldVisit, err = memdb.Insert(txn, visitsTableID, &visit2)
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Nil(t, oldVisit)
 
 	// Commit
 	txn.Commit()
@@ -320,18 +317,20 @@ var (
 	placeNameIndex = indices.NewFieldIndex(&place, &place.Name)
 )
 
-func testComplexSchema() [][]memdb.Index {
-	return [][]memdb.Index{
-		{
+func testComplexSchema() memdb.Config {
+	c := memdb.Config{
+		Indices: []memdb.Index{
 			personNameIndex,
 			personAgeIndex,
 			personNegativeAgeIndex,
-		},
-		{
 			placeNameIndex,
 		},
-		{},
 	}
+	memdb.ConfigureEntity[TestPerson](&c)
+	memdb.ConfigureEntity[TestPlace](&c)
+	memdb.ConfigureEntity[TestVisit](&c)
+
+	return c
 }
 
 func testComplexDB(t *testing.T) *memdb.MemDB {
@@ -365,18 +364,4 @@ func testVisit(personID, placeID memdb.ID) TestVisit {
 		Person: personID,
 		Place:  placeID,
 	}
-}
-
-func toReflectValue(obj any) *reflect.Value {
-	v := reflect.ValueOf(obj)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	v2 := reflect.New(v.Type())
-	v2.Elem().Set(v)
-	return &v2
-}
-
-func fromReflectValue[T any](v *reflect.Value) T {
-	return v.Elem().Interface().(T)
 }

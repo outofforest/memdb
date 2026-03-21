@@ -10,7 +10,7 @@ import (
 func TestTree(t *testing.T) {
 	requireT := require.New(t)
 
-	tree := New[int]()
+	tree := New[*int]()
 
 	v, dirty := tree.Get(0)
 	requireT.Nil(v)
@@ -96,7 +96,7 @@ func TestTree(t *testing.T) {
 func TestTreeBig(t *testing.T) {
 	requireT := require.New(t)
 
-	tree := New[uint64]()
+	tree := New[*uint64]()
 
 	for i := range uint64(10_000) {
 		tree.Set(i, lo.ToPtr(i+100))
@@ -122,7 +122,7 @@ func TestTreeBig(t *testing.T) {
 func TestNext(t *testing.T) {
 	requireT := require.New(t)
 
-	tree1 := New[int]()
+	tree1 := New[*int]()
 	tree1.Set(1, lo.ToPtr(10))
 	tree1.Set(2, lo.ToPtr(20))
 	tree1.Set(3, lo.ToPtr(30))
