@@ -96,7 +96,7 @@ func TestTxn_Isolation(t *testing.T) {
 }
 
 // Test that an abort clears progress.
-func TestTxn_Abort(t *testing.T) {
+func TestTxn_DontCommit(t *testing.T) {
 	db := testDB(t)
 	txn1 := db.Txn(true)
 
@@ -131,9 +131,7 @@ func TestTxn_Abort(t *testing.T) {
 	}
 	require.Nil(t, oldV)
 
-	// Abort the txn
-	txn1.Abort()
-	txn1.Commit()
+	// Leve the tx uncommitted.
 
 	// Create a new transaction
 	txn2 := db.Txn(false)

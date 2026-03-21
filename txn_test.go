@@ -12,33 +12,6 @@ import (
 	"github.com/outofforest/memdb"
 )
 
-func TestTxn_Read_AbortCommit(t *testing.T) {
-	db := testDB(t)
-	txn := db.Txn(false) // Readonly
-
-	txn.Abort()
-	txn.Abort()
-	txn.Commit()
-	txn.Commit()
-}
-
-func TestTxn_Write_AbortCommit(t *testing.T) {
-	db := testDB(t)
-	txn := db.Txn(true) // Write
-
-	txn.Abort()
-	txn.Abort()
-	txn.Commit()
-	txn.Commit()
-
-	txn = db.Txn(true) // Write
-
-	txn.Commit()
-	txn.Commit()
-	txn.Abort()
-	txn.Abort()
-}
-
 func TestTxn_Insert_First(t *testing.T) {
 	db := testDB(t)
 	txn := db.Txn(true)
@@ -465,7 +438,7 @@ func TestTxn_LowerBound(t *testing.T) {
 			txn.Commit()
 
 			txn = db.Txn(false)
-			defer txn.Abort()
+
 			iterator, err := txn.Iterator(0, 0, memdb.From, tc.Search)
 			if err != nil {
 				t.Fatalf("err lower bound: %s", err)
@@ -504,7 +477,7 @@ func TestTxn_Back(t *testing.T) {
 	txn.Commit()
 
 	txn = db.Txn(false)
-	defer txn.Abort()
+
 	iterator, err := txn.Iterator(0, 0, memdb.From, rows[5].ID, memdb.Back, 3)
 	require.NoError(t, err)
 

@@ -21,30 +21,10 @@ var ErrNotFound = errors.Errorf("not found")
 // Txn is a transaction against a MemDB.
 // This can be a read or write transaction.
 type Txn struct {
-	db      *MemDB
-	write   bool
-	rootTxn *tree.Tree[iradix.Txn[reflect.Value]]
-}
-
-// Abort is used to cancel this transaction.
-// This is a noop for read transactions,
-// already aborted or committed transactions.
-func (txn *Txn) Abort() {
-	// Noop for a read transaction
-	if !txn.write {
-		return
-	}
-
-	// Check if already aborted or committed
-	if txn.rootTxn == nil {
-		return
-	}
-
-	// Clear the txn
-	txn.rootTxn = nil
-
-	// Release the writer lock since this is invalid
-	txn.db.writer.Unlock()
+	db             *MemDB
+	write          bool
+	rootTxn        *tree.Tree[iradix.Txn[reflect.Value]]
+	oldRootPointer unsafe.Pointer
 }
 
 // Commit is used to finalize this transaction.
@@ -53,22 +33,14 @@ func (txn *Txn) Abort() {
 func (txn *Txn) Commit() {
 	// Noop for a read transaction.
 	if !txn.write {
-		return
-	}
-
-	// Check if already aborted or committed.
-	if txn.rootTxn == nil {
-		return
+		panic("commit called on read-only transaction")
 	}
 
 	// Update the root of the DB.
-	atomic.StorePointer(&txn.db.root, unsafe.Pointer(txn.rootTxn))
-
-	// Clear the txn.
-	txn.rootTxn = nil
-
-	// Release the writer lock since this is invalid.
-	txn.db.writer.Unlock()
+	previousRootPointer := atomic.SwapPointer(&txn.db.root, unsafe.Pointer(txn.rootTxn))
+	if previousRootPointer != txn.oldRootPointer {
+		panic("root pointer has changed during transaction")
+	}
 }
 
 // Insert is used to add or update an object into the given table.
@@ -77,9 +49,6 @@ func (txn *Txn) Commit() {
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
 func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error) {
-	if !txn.write {
-		return nil, errors.Errorf("cannot insert in read-only transaction")
-	}
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
@@ -173,9 +142,6 @@ func (txn *Txn) Insert(table uint64, obj *reflect.Value) (*reflect.Value, error)
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
 func (txn *Txn) Delete(table uint64, obj *reflect.Value) (*reflect.Value, error) {
-	if !txn.write {
-		return nil, errors.Errorf("cannot delete in read-only transaction")
-	}
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
