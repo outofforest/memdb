@@ -6,6 +6,7 @@
 package memdb
 
 import (
+	"fmt"
 	"reflect"
 	"sync/atomic"
 	"unsafe"
@@ -13,6 +14,23 @@ import (
 	"github.com/outofforest/iradix"
 	"github.com/outofforest/memdb/tree"
 )
+
+// Config is the memdb config.
+type Config struct {
+	Indices          []Index
+	treeConstructors []func() (reflect.Type, func() any)
+}
+
+// ConfigureEntity adds entity to the config.
+func ConfigureEntity[T any](c *Config) {
+	c.treeConstructors = append(c.treeConstructors, treeConstructor[T])
+}
+
+func treeConstructor[T any]() (reflect.Type, func() any) {
+	return reflect.TypeFor[T](), func() any {
+		return iradix.NewTxn(iradix.New[T]())
+	}
+}
 
 // MemDB is an in-memory database providing Atomicity, Consistency, and
 // Isolation from ACID. MemDB doesn't provide Durability since it is an
@@ -33,35 +51,60 @@ type MemDB struct {
 }
 
 // NewMemDB creates a new MemDB with the given schema.
-func NewMemDB(indexes [][]Index) (*MemDB, error) {
-	schema := make(DBSchema, 0, len(indexes))
+func NewMemDB(config Config) (*MemDB, error) {
+	indicesByEntity := map[reflect.Type][]Index{}
+	treeConstructors := map[reflect.Type]func() any{}
+	for _, c := range config.treeConstructors {
+		eType, eTreeConstructor := c()
+		if _, exists := indicesByEntity[eType]; exists {
+			return nil, fmt.Errorf("duplicated entity %s", eType)
+		}
+		indicesByEntity[eType] = nil
+		treeConstructors[eType] = eTreeConstructor
+	}
 
-	for _, tableIndexes := range indexes {
+	for _, i := range config.Indices {
+		t := i.Type()
+		if _, exists := indicesByEntity[t]; !exists {
+			return nil, fmt.Errorf("index for undefined entity %s", t)
+		}
+		indicesByEntity[t] = append(indicesByEntity[t], i)
+	}
+
+	root := tree.New[any]()
+	db := &MemDB{
+		schema: make(DBSchema, 0, len(indicesByEntity)),
+		root:   unsafe.Pointer(root),
+	}
+
+	var indexID uint64
+	for eT, indices := range indicesByEntity {
 		t := TableSchema{}
-		schema = append(schema, t)
+		db.schema = append(db.schema, t)
+		treeConstructor := treeConstructors[eT]
 
+		indexID++
 		t[IDIndexID] = &IndexSchema{
 			Unique:  true,
 			Indexer: IDIndexer{},
+			id:      indexID,
 		}
+		root.Set(indexID, treeConstructor())
 
-		for _, index := range tableIndexes {
+		for _, index := range indices {
+			indexID++
 			indexSchema := index.Schema()
+			indexSchema.id = indexID
 			t[index.ID()] = indexSchema
+			root.Set(indexID, treeConstructor())
 		}
 	}
 
 	// Validate the schema
-	if err := schema.Validate(); err != nil {
+	if err := db.schema.Validate(); err != nil {
 		return nil, err
 	}
 
-	// Create the MemDB
-	db := &MemDB{
-		schema: schema,
-		root:   unsafe.Pointer(tree.New[iradix.Txn[reflect.Value]]()),
-	}
-	db.initialize()
 	return db, nil
 }
 
@@ -91,22 +134,8 @@ func (db *MemDB) Snapshot() *MemDB {
 	}
 }
 
-// initialize is used to setup the DB for use after creation. This should
-// be called only once after allocating a MemDB.
-func (db *MemDB) initialize() {
-	root, _ := db.getRoot()
-	var indexID uint64
-	for _, tableSchema := range db.schema {
-		for _, indexSchema := range tableSchema {
-			indexID++
-			indexSchema.id = indexID
-			root.Set(indexID, iradix.NewTxn(iradix.New[reflect.Value]()))
-		}
-	}
-}
-
 // getRoot is used to do an atomic load of the root pointer.
-func (db *MemDB) getRoot() (*tree.Tree[iradix.Txn[reflect.Value]], unsafe.Pointer) {
+func (db *MemDB) getRoot() (*tree.Tree[any], unsafe.Pointer) {
 	pointer := atomic.LoadPointer(&db.root)
-	return (*tree.Tree[iradix.Txn[reflect.Value]])(pointer), pointer
+	return (*tree.Tree[any])(pointer), pointer
 }

@@ -17,20 +17,18 @@ func TestTxn_Insert_First(t *testing.T) {
 	txn := db.Txn(true)
 
 	obj := testObj()
-	oldV, err := txn.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn, 0, obj)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
-	raw, err := txn.First(0, memdb.IDIndexID, obj.ID)
+	raw, err := memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if fromReflectValue[TestObject](raw) != *obj {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), obj)
-	}
+	require.Equal(t, obj, raw)
 }
 
 func TestTxn_InsertUpdate_First(t *testing.T) {
@@ -41,40 +39,36 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 		ID:  memdb.ID{1},
 		Foo: "abc",
 	}
-	oldV, err := txn.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn, 0, obj)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	require.Nil(t, oldV)
 
-	raw, err := txn.First(0, memdb.IDIndexID, obj.ID)
+	raw, err := memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if fromReflectValue[TestObject](raw) != *obj {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj)
-	}
+	require.Equal(t, obj, raw)
 
 	// Update the object
 	obj2 := &TestObject{
 		ID:  memdb.ID{1},
 		Foo: "xyz",
 	}
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn, 0, obj2)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	require.Equal(t, *obj, fromReflectValue[TestObject](oldV))
+	require.Equal(t, obj, oldV)
 
-	raw, err = txn.First(0, memdb.IDIndexID, obj.ID)
+	raw, err = memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if fromReflectValue[TestObject](raw) != *obj2 {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj)
-	}
+	require.Equal(t, obj2, raw)
 }
 
 func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
@@ -85,39 +79,35 @@ func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
 		ID:  memdb.ID{1},
 		Foo: "abc",
 	}
-	oldV, err := txn.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn, 0, obj)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	raw, err := txn.First(0, indexFoo.ID(), obj.Foo)
+	raw, err := memdb.First[TestObject](txn, 0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if fromReflectValue[TestObject](raw) != *obj {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj)
-	}
+	require.Equal(t, obj, raw)
 
 	// Update the object
 	obj2 := &TestObject{
 		ID:  memdb.ID{1},
 		Foo: "xyz",
 	}
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn, 0, obj2)
 	require.NoError(t, err)
-	require.Equal(t, *obj, fromReflectValue[TestObject](oldV))
+	require.Equal(t, obj, oldV)
 
-	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
+	raw, err = memdb.First[TestObject](txn, 0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if fromReflectValue[TestObject](raw) != *obj2 {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj2)
-	}
+	require.Equal(t, obj2, raw)
 
 	// Lookup of the old value should fail
-	raw, err = txn.First(0, indexFoo.ID(), obj.Foo)
+	raw, err = memdb.First[TestObject](txn, 0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -144,36 +134,32 @@ func TestTxn_First_NonUnique_Multiple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	oldV, err := txn.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn, 0, obj)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn, 0, obj2)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	oldV, err = txn.Insert(0, toReflectValue(obj3))
+	oldV, err = memdb.Insert(txn, 0, obj3)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
 	// The first object has a unique secondary value
-	raw, err := txn.First(0, indexFoo.ID(), obj.Foo)
+	raw, err := memdb.First[TestObject](txn, 0, indexFoo.ID(), obj.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if fromReflectValue[TestObject](raw) != *obj {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj)
-	}
+	require.Equal(t, obj, raw)
 
 	// Second and third object share secondary value,
 	// but the primary ID of obj2 should be first
-	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
+	raw, err = memdb.First[TestObject](txn, 0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if fromReflectValue[TestObject](raw) != *obj2 {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), obj2)
-	}
+	require.Equal(t, obj2, raw)
 }
 
 func TestTxn_InsertDelete_Simple(t *testing.T) {
@@ -189,40 +175,38 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	oldV, err := txn.Insert(0, toReflectValue(obj1))
+	oldV, err := memdb.Insert(txn, 0, obj1)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn, 0, obj2)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
 	// Check the shared secondary value,
 	// but the primary ID of obj2 should be first
-	raw, err := txn.First(0, indexFoo.ID(), obj2.Foo)
+	raw, err := memdb.First[TestObject](txn, 0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if fromReflectValue[TestObject](raw) != *obj1 {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-	}
+	require.Equal(t, obj1, raw)
 
 	// Commit and start a new transaction
 	txn.Commit()
 	txn = db.Txn(true)
 
 	// Delete obj1
-	oldV, err = txn.Delete(0, toReflectValue(obj1))
+	oldV, err = memdb.Delete(txn, 0, obj1)
 	require.NoError(t, err)
-	require.Equal(t, *obj1, fromReflectValue[TestObject](oldV))
+	require.Equal(t, obj1, oldV)
 
 	// Delete obj1 again and expect ErrNotFound
-	oldV, err = txn.Delete(0, toReflectValue(obj1))
+	oldV, err = memdb.Delete(txn, 0, obj1)
 	require.ErrorIs(t, err, memdb.ErrNotFound)
 	require.Nil(t, oldV)
 
 	// Lookup of the primary obj1 should fail
-	raw, err = txn.First(0, memdb.IDIndexID, obj1.ID)
+	raw, err = memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj1.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -235,7 +219,7 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	txn = db.Txn(false)
 
 	// Lookup of the primary obj1 should fail
-	raw, err = txn.First(0, memdb.IDIndexID, obj1.ID)
+	raw, err = memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj1.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -245,13 +229,11 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 
 	// Check the shared secondary value,
 	// but the primary ID of obj2 should be first
-	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
+	raw, err = memdb.First[TestObject](txn, 0, indexFoo.ID(), obj2.Foo)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if fromReflectValue[TestObject](raw) != *obj2 {
-		t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj2)
-	}
+	require.Equal(t, obj2, raw)
 }
 
 func TestTxn_InsertGet_Simple(t *testing.T) {
@@ -267,64 +249,43 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	oldV, err := txn.Insert(0, toReflectValue(obj1))
+	oldV, err := memdb.Insert(txn, 0, obj1)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	oldV, err = txn.Insert(0, toReflectValue(obj2))
+	oldV, err = memdb.Insert(txn, 0, obj2)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
 	checkResult := func(txn *memdb.Txn) {
 		// Attempt a row scan on the ID
-		result, err := txn.Iterator(0, memdb.IDIndexID)
+		result, err := memdb.Iterator[TestObject](txn, 0, memdb.IDIndexID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
 
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj1 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj2 {
-			t.Fatalf("bad: %#v %#v", raw, obj2)
-		}
-
-		if raw := result.Next(); raw != nil {
-			t.Fatalf("bad: %#v %#v", raw, nil)
-		}
+		require.Equal(t, obj1, result.Next())
+		require.Equal(t, obj2, result.Next())
+		require.Nil(t, result.Next())
 
 		// Attempt a row scan on the ID with specific ID
-		result, err = txn.Iterator(0, memdb.IDIndexID, obj1.ID)
+		result, err = memdb.Iterator[TestObject](txn, 0, memdb.IDIndexID, obj1.ID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
 
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj1 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-		}
-
-		if raw := result.Next(); raw != nil {
-			t.Fatalf("bad: %#v %#v", raw, nil)
-		}
+		require.Equal(t, obj1, result.Next())
+		require.Nil(t, result.Next())
 
 		// Attempt a row scan secondary index
-		result, err = txn.Iterator(0, indexFoo.ID(), obj1.Foo)
+		result, err = memdb.Iterator[TestObject](txn, 0, indexFoo.ID(), obj1.Foo)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
 
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj1 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj1)
-		}
-
-		if raw := result.Next(); fromReflectValue[TestObject](raw) != *obj2 {
-			t.Fatalf("bad: %#v %#v", fromReflectValue[TestObject](raw), *obj2)
-		}
-
-		if raw := result.Next(); raw != nil {
-			t.Fatalf("bad: %#v %#v", raw, nil)
-		}
+		require.Equal(t, obj1, result.Next())
+		require.Equal(t, obj2, result.Next())
+		require.Nil(t, result.Next())
 	}
 
 	// Check the results within the txn
@@ -339,20 +300,25 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 }
 
 func TestTxn_GetIterAndDelete(t *testing.T) {
-	db, err := memdb.NewMemDB([][]memdb.Index{{indexFoo}})
+	c := memdb.Config{
+		Indices: []memdb.Index{indexFoo},
+	}
+	memdb.ConfigureEntity[TestObject](&c)
+
+	db, err := memdb.NewMemDB(c)
 	require.NoError(t, err)
 
 	key := "aaaa"
 	txn := db.Txn(true)
-	oldV, err := txn.Insert(0, toReflectValue(TestObject{ID: memdb.ID{1}, Foo: key}))
+	oldV, err := memdb.Insert(txn, 0, &TestObject{ID: memdb.ID{1}, Foo: key})
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	oldV, err = txn.Insert(0, toReflectValue(TestObject{ID: memdb.ID{123}, Foo: key}))
+	oldV, err = memdb.Insert(txn, 0, &TestObject{ID: memdb.ID{123}, Foo: key})
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
-	oldV, err = txn.Insert(0, toReflectValue(TestObject{ID: memdb.ID{2}, Foo: key}))
+	oldV, err = memdb.Insert(txn, 0, &TestObject{ID: memdb.ID{2}, Foo: key})
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 
@@ -360,15 +326,15 @@ func TestTxn_GetIterAndDelete(t *testing.T) {
 
 	txn = db.Txn(true)
 	// Delete something
-	oldV, err = txn.Delete(0, toReflectValue(TestObject{ID: memdb.ID{123}, Foo: key}))
+	oldV, err = memdb.Delete(txn, 0, &TestObject{ID: memdb.ID{123}, Foo: key})
 	require.NoError(t, err)
-	require.Equal(t, TestObject{ID: memdb.ID{123}, Foo: key}, fromReflectValue[TestObject](oldV))
+	require.Equal(t, &TestObject{ID: memdb.ID{123}, Foo: key}, oldV)
 
-	iter, err := txn.Iterator(0, indexFoo.ID(), key)
+	iter, err := memdb.Iterator[TestObject](txn, 0, indexFoo.ID(), key)
 	require.NoError(t, err)
 
 	for obj := iter.Next(); obj != nil; obj = iter.Next() {
-		_, err := txn.Delete(0, obj)
+		_, err := memdb.Delete(txn, 0, obj)
 		require.NoError(t, err)
 	}
 
@@ -430,7 +396,7 @@ func TestTxn_LowerBound(t *testing.T) {
 
 			txn := db.Txn(true)
 			for _, row := range tc.Rows {
-				_, err := txn.Insert(0, toReflectValue(row))
+				_, err := memdb.Insert(txn, 0, &row)
 				if err != nil {
 					t.Fatalf("err inserting: %s", err)
 				}
@@ -439,7 +405,7 @@ func TestTxn_LowerBound(t *testing.T) {
 
 			txn = db.Txn(false)
 
-			iterator, err := txn.Iterator(0, 0, memdb.From, tc.Search)
+			iterator, err := memdb.Iterator[TestObject](txn, 0, 0, memdb.From, tc.Search)
 			if err != nil {
 				t.Fatalf("err lower bound: %s", err)
 			}
@@ -447,7 +413,7 @@ func TestTxn_LowerBound(t *testing.T) {
 			// Now range scan and built a result set
 			result := []TestObject{}
 			for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-				result = append(result, fromReflectValue[TestObject](obj))
+				result = append(result, *obj)
 			}
 
 			if !reflect.DeepEqual(result, tc.Want) {
@@ -471,20 +437,20 @@ func TestTxn_Back(t *testing.T) {
 
 	txn := db.Txn(true)
 	for _, row := range rows {
-		_, err := txn.Insert(0, toReflectValue(row))
+		_, err := memdb.Insert(txn, 0, &row)
 		require.NoError(t, err)
 	}
 	txn.Commit()
 
 	txn = db.Txn(false)
 
-	iterator, err := txn.Iterator(0, 0, memdb.From, rows[5].ID, memdb.Back, 3)
+	iterator, err := memdb.Iterator[TestObject](txn, 0, 0, memdb.From, rows[5].ID, memdb.Back, 3)
 	require.NoError(t, err)
 
 	// Now range scan and built a result set
 	result := []TestObject{}
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-		result = append(result, fromReflectValue[TestObject](obj))
+		result = append(result, *obj)
 	}
 
 	require.Equal(t, rows[2:], result)

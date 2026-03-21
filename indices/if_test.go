@@ -1,7 +1,6 @@
 package indices
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,10 +29,8 @@ func TestIfIndexer(t *testing.T) {
 
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1}, o{Value1: 2}))
 	requireT.NotZero(index.ID())
-	requireT.Equal(subIndex.Type(), index.Type())
 	requireT.NotEqual(subIndex.ID(), index.ID())
 	requireT.False(index.Schema().Unique)
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
 	indexer := index.Schema().Indexer.(ifIndexer[o])
 	requireT.Len(indexer.Args(), 1)
@@ -61,7 +58,6 @@ func TestIfIndexerMulti(t *testing.T) {
 
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 1, Value4: def}))
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 
 	indexer := index.Schema().Indexer.(ifIndexer[o])
 	requireT.Len(indexer.Args(), 2)
@@ -93,7 +89,6 @@ func TestIfIndexerUnique(t *testing.T) {
 
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 1, Value4: def}))
 	requireT.NotZero(index.ID())
-	requireT.IsType(reflect.TypeFor[o](), index.Type())
 	requireT.True(index.Schema().Unique)
 
 	indexer := index.Schema().Indexer.(ifIndexer[o])
@@ -113,19 +108,6 @@ func TestIfIndexerUnique(t *testing.T) {
 		verifyMissing{o: v})
 }
 
-func TestIfIndexerErrorOnTypeMismatch(t *testing.T) {
-	t.Parallel()
-
-	requireT := require.New(t)
-	v := &o{}
-
-	subIndex := NewFieldIndex(v, &v.Value1)
-
-	requireT.Panics(func() {
-		NewIfIndex(subIndex, ifFunc[subO1](subO1{Value1: 1}, subO1{Value1: 2}))
-	})
-}
-
 func TestEntityUpdateWithIfIndex(t *testing.T) {
 	requireT := require.New(t)
 
@@ -134,53 +116,58 @@ func TestEntityUpdateWithIfIndex(t *testing.T) {
 		return v.Value1 == 1
 	})
 
-	db, err := memdb.NewMemDB([][]memdb.Index{{index}})
+	c := memdb.Config{
+		Indices: []memdb.Index{index},
+	}
+	memdb.ConfigureEntity[o](&c)
+
+	db, err := memdb.NewMemDB(c)
 	requireT.NoError(err)
 	txn := db.Txn(true)
 
 	eID := memdb.NewID[memdb.ID]()
-	e := reflect.ValueOf(&o{
+	e := &o{
 		ID:     eID,
 		Value1: 1,
-	})
+	}
 
-	old, err := txn.Insert(0, &e)
+	old, err := memdb.Insert(txn, 0, e)
 	requireT.NoError(err)
 	requireT.Nil(old)
 	txn.Commit()
 
 	txn = db.Txn(true)
-	e2, err := txn.First(0, memdb.IDIndexID, eID)
+	e2, err := memdb.First[o](txn, 0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
-	requireT.Equal(e.Elem().Interface(), e2.Elem().Interface())
+	requireT.Equal(e, e2)
 
-	e3, err := txn.First(0, index.ID(), uint64(1))
+	e3, err := memdb.First[o](txn, 0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.NotNil(e3)
 	requireT.Equal(e2, e3)
 
-	e4 := reflect.ValueOf(&o{
+	e4 := &o{
 		ID:     eID,
 		Value1: 2,
-	})
+	}
 
-	old, err = txn.Insert(0, &e4)
+	old, err = memdb.Insert(txn, 0, e4)
 	requireT.NoError(err)
-	requireT.Equal(&e, old)
+	requireT.Equal(e, old)
 	txn.Commit()
 
 	txn = db.Txn(false)
-	e2, err = txn.First(0, memdb.IDIndexID, eID)
+	e2, err = memdb.First[o](txn, 0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
 	requireT.NotNil(e2)
-	requireT.Equal(e4.Elem().Interface(), e2.Elem().Interface())
+	requireT.Equal(e4, e2)
 
-	e3, err = txn.First(0, index.ID(), uint64(2))
+	e3, err = memdb.First[o](txn, 0, index.ID(), uint64(2))
 	requireT.NoError(err)
 	requireT.Nil(e3)
 
-	e3, err = txn.First(0, index.ID(), uint64(1))
+	e3, err = memdb.First[o](txn, 0, index.ID(), uint64(1))
 	requireT.NoError(err)
 	requireT.Nil(e3)
 }

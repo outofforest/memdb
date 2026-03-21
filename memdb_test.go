@@ -60,7 +60,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 	// Add an object
 	obj := testObj()
 	txn := db.Txn(true)
-	oldV, err := txn.Insert(0, toReflectValue(obj))
+	oldV, err := memdb.Insert(txn, 0, obj)
 	require.NoError(t, err)
 	require.Nil(t, oldV)
 	txn.Commit()
@@ -70,14 +70,14 @@ func TestMemDB_Snapshot(t *testing.T) {
 
 	// Remove the object
 	txn = db.Txn(true)
-	oldV, err = txn.Delete(0, toReflectValue(obj))
+	oldV, err = memdb.Delete(txn, 0, obj)
 	require.NoError(t, err)
-	require.Equal(t, *obj, fromReflectValue[TestObject](oldV))
+	require.Equal(t, obj, oldV)
 	txn.Commit()
 
 	// Object should exist in second snapshot but not first
 	txn = db.Txn(false)
-	out, err := txn.First(0, memdb.IDIndexID, obj.ID)
+	out, err := memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestMemDB_Snapshot(t *testing.T) {
 	}
 
 	txn = db2.Txn(true)
-	out, err = txn.First(0, memdb.IDIndexID, obj.ID)
+	out, err = memdb.First[TestObject](txn, 0, memdb.IDIndexID, obj.ID)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

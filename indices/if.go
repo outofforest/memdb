@@ -4,25 +4,20 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/pkg/errors"
-
 	"github.com/outofforest/memdb"
 )
 
 // IfIndex indexes those elements from another index for which f returns true.
 type IfIndex[T any] struct {
 	id       uint64
-	subIndex memdb.Index
+	subIndex Index[T]
 	indexer  memdb.Indexer
 	unique   bool
 }
 
 // NewIfIndex creates new conditional index.
-func NewIfIndex[T any](subIndex memdb.Index, f func(o *T) bool) *IfIndex[T] {
-	var v T
-	if t := reflect.TypeOf(v); t != subIndex.Type() {
-		panic(errors.Errorf("subindex type mismatch, expected: %s, got: %s", t, subIndex.Type()))
-	}
+func NewIfIndex[T any](subIndex Index[T], f func(o *T) bool) *IfIndex[T] {
+	var _ Index[T] = (*IfIndex[T])(nil)
 
 	schema := subIndex.Schema()
 	index := &IfIndex[T]{
@@ -42,17 +37,21 @@ func (i *IfIndex[T]) ID() uint64 {
 	return i.id
 }
 
-// Type returns type of entity index is defined for.
-func (i *IfIndex[T]) Type() reflect.Type {
-	return i.subIndex.Type()
-}
-
 // Schema returns memdb index schema.
 func (i *IfIndex[T]) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
 		Unique:  i.unique,
 		Indexer: i.indexer,
 	}
+}
+
+// Type returns type of entity index is created for.
+func (i *IfIndex[T]) Type() reflect.Type {
+	return reflect.TypeFor[T]()
+}
+
+func (i *IfIndex[T]) dummyTDefiner(t T) {
+	panic("it should never be called")
 }
 
 var _ memdb.Indexer = ifIndexer[int]{}

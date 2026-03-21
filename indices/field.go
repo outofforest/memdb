@@ -12,19 +12,17 @@ import (
 )
 
 // FieldIndex defines index indexing entities by struct field.
-type FieldIndex struct {
-	id         uint64
-	entityType reflect.Type
-	indexer    memdb.Indexer
+type FieldIndex[T any] struct {
+	id      uint64
+	indexer memdb.Indexer
 }
 
 // NewFieldIndex defines new field index.
-func NewFieldIndex(ePtr, fieldPtr any) *FieldIndex {
-	ePtrType := reflect.TypeOf(ePtr)
-	if ePtrType.Kind() != reflect.Ptr {
-		panic(errors.New("ePtr is not a pointer"))
-	}
-	if ePtrType.Elem().Kind() != reflect.Struct {
+func NewFieldIndex[T any](ePtr *T, fieldPtr any) *FieldIndex[T] {
+	var _ Index[T] = (*FieldIndex[T])(nil)
+
+	eType := reflect.TypeFor[T]()
+	if eType.Kind() != reflect.Struct {
 		panic(errors.New("*ePtr is not a struct"))
 	}
 
@@ -37,14 +35,14 @@ func NewFieldIndex(ePtr, fieldPtr any) *FieldIndex {
 	}
 
 	eStart := reflect.ValueOf(ePtr).Pointer()
-	eSize := ePtrType.Elem().Size()
+	eSize := eType.Size()
 	fieldStart := reflect.ValueOf(fieldPtr).Pointer()
 	if fieldStart < eStart || fieldStart >= eStart+eSize {
 		panic(errors.Errorf("field does not belong to entity"))
 	}
 
 	offset := fieldStart - eStart
-	fieldType := findField(ePtrType.Elem(), offset)
+	fieldType := findField(eType, offset)
 	indexer, err := indexerForType(fieldType, offset)
 	if err != nil {
 		panic(err)
@@ -53,29 +51,32 @@ func NewFieldIndex(ePtr, fieldPtr any) *FieldIndex {
 		panic(errors.Errorf("unexpected field type %s, expected %s", fieldType, fieldPtrType.Elem()))
 	}
 
-	index := &FieldIndex{
-		entityType: ePtrType.Elem(),
-		indexer:    indexer,
+	index := &FieldIndex[T]{
+		indexer: indexer,
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
 }
 
 // ID returns ID of the index.
-func (i *FieldIndex) ID() uint64 {
+func (i *FieldIndex[T]) ID() uint64 {
 	return i.id
 }
 
-// Type returns type of entity index is defined for.
-func (i *FieldIndex) Type() reflect.Type {
-	return i.entityType
-}
-
 // Schema returns memdb index schema.
-func (i *FieldIndex) Schema() *memdb.IndexSchema {
+func (i *FieldIndex[T]) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
 		Indexer: i.indexer,
 	}
+}
+
+// Type returns type of entity index is created for.
+func (i *FieldIndex[T]) Type() reflect.Type {
+	return reflect.TypeFor[T]()
+}
+
+func (i *FieldIndex[T]) dummyTDefiner(t T) {
+	panic("it should never be called")
 }
 
 func findField(t reflect.Type, offset uintptr) reflect.Type {

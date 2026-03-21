@@ -8,17 +8,19 @@ import (
 )
 
 // ReverseIndex reverses the order of elements in the index by reversing all the bits of the index key.
-type ReverseIndex struct {
+type ReverseIndex[T any] struct {
 	id       uint64
-	subIndex memdb.Index
+	subIndex Index[T]
 	indexer  memdb.Indexer
 	unique   bool
 }
 
 // NewReverseIndex creates new order reversing index.
-func NewReverseIndex(subIndex memdb.Index) *ReverseIndex {
+func NewReverseIndex[T any](subIndex Index[T]) *ReverseIndex[T] {
+	var _ Index[T] = (*ReverseIndex[T])(nil)
+
 	schema := subIndex.Schema()
-	index := &ReverseIndex{
+	index := &ReverseIndex[T]{
 		subIndex: subIndex,
 		indexer: reverseIndexer{
 			subIndexer: schema.Indexer.(memdb.ArgSerializerIndexer),
@@ -30,21 +32,25 @@ func NewReverseIndex(subIndex memdb.Index) *ReverseIndex {
 }
 
 // ID returns ID of the index.
-func (i *ReverseIndex) ID() uint64 {
+func (i *ReverseIndex[T]) ID() uint64 {
 	return i.id
 }
 
-// Type returns type of entity index is defined for.
-func (i *ReverseIndex) Type() reflect.Type {
-	return i.subIndex.Type()
-}
-
 // Schema returns memdb index schema.
-func (i *ReverseIndex) Schema() *memdb.IndexSchema {
+func (i *ReverseIndex[T]) Schema() *memdb.IndexSchema {
 	return &memdb.IndexSchema{
 		Unique:  i.unique,
 		Indexer: i.indexer,
 	}
+}
+
+// Type returns type of entity index is created for.
+func (i *ReverseIndex[T]) Type() reflect.Type {
+	return reflect.TypeFor[T]()
+}
+
+func (i *ReverseIndex[T]) dummyTDefiner(t T) {
+	panic("it should never be called")
 }
 
 var _ memdb.Indexer = reverseIndexer{}

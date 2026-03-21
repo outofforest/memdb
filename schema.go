@@ -52,11 +52,11 @@ func (s DBSchema) Validate() error {
 	return nil
 }
 
-// Index defines the interface of index.
+// Index represents DB index.
 type Index interface {
 	ID() uint64
-	Type() reflect.Type
 	Schema() *IndexSchema
+	Type() reflect.Type
 }
 
 // ArgSerializerIndexer combines ArgSerializer and Indexer.
