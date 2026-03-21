@@ -7,7 +7,6 @@ package memdb
 
 import (
 	"reflect"
-	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -31,9 +30,6 @@ import (
 type MemDB struct {
 	schema DBSchema
 	root   unsafe.Pointer // *tree.Tree underneath
-
-	// There can only be a single writer at once
-	writer sync.Mutex
 }
 
 // NewMemDB creates a new MemDB with the given schema.
@@ -69,32 +65,16 @@ func NewMemDB(indexes [][]Index) (*MemDB, error) {
 	return db, nil
 }
 
-// DBSchema returns schema in use for introspection.
-//
-// The method is intended for *read-only* debugging use cases,
-// returned schema should *never be modified in-place*.
-func (db *MemDB) DBSchema() DBSchema {
-	return db.schema
-}
-
 // Txn is used to start a new transaction in either read or write mode.
 // There can only be a single concurrent writer, but any number of readers.
 func (db *MemDB) Txn(write bool) *Txn {
-	if write {
-		db.writer.Lock()
-	}
-
+	root, rootPointer := db.getRoot()
 	return &Txn{
-		db:      db,
-		write:   write,
-		rootTxn: db.getRoot().Next(),
+		db:             db,
+		write:          write,
+		rootTxn:        root.Next(),
+		oldRootPointer: rootPointer,
 	}
-}
-
-// AwaitTxn waits until pending transaction (if any) is finished.
-func (db *MemDB) AwaitTxn() {
-	db.writer.Lock()
-	db.writer.Unlock() //nolint:staticcheck
 }
 
 // Snapshot is used to capture a point-in-time snapshot of the database that
@@ -104,16 +84,17 @@ func (db *MemDB) AwaitTxn() {
 // the Snapshot will not deep copy those values. Therefore, it is still unsafe
 // to modify any inserted values in either DB.
 func (db *MemDB) Snapshot() *MemDB {
+	_, rootPointer := db.getRoot()
 	return &MemDB{
 		schema: db.schema,
-		root:   unsafe.Pointer(db.getRoot()),
+		root:   rootPointer,
 	}
 }
 
 // initialize is used to setup the DB for use after creation. This should
 // be called only once after allocating a MemDB.
 func (db *MemDB) initialize() {
-	root := db.getRoot()
+	root, _ := db.getRoot()
 	var indexID uint64
 	for _, tableSchema := range db.schema {
 		for _, indexSchema := range tableSchema {
@@ -125,6 +106,7 @@ func (db *MemDB) initialize() {
 }
 
 // getRoot is used to do an atomic load of the root pointer.
-func (db *MemDB) getRoot() *tree.Tree[iradix.Txn[reflect.Value]] {
-	return (*tree.Tree[iradix.Txn[reflect.Value]])(atomic.LoadPointer(&db.root))
+func (db *MemDB) getRoot() (*tree.Tree[iradix.Txn[reflect.Value]], unsafe.Pointer) {
+	pointer := atomic.LoadPointer(&db.root)
+	return (*tree.Tree[iradix.Txn[reflect.Value]])(pointer), pointer
 }
