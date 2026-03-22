@@ -33,7 +33,7 @@ const (
 type Txn struct {
 	db             *MemDB
 	write          bool
-	rootTxn        *tree.Tree[any]
+	rootTxn        *tree.Tree[*iradix.Txn[unsafe.Pointer]]
 	oldRootPointer unsafe.Pointer
 }
 
@@ -58,12 +58,10 @@ func (txn *Txn) Commit() {
 // When updating an object, the obj provided should be a copy rather
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
-func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
+func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error) {
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
-
-	objPtr := unsafe.Pointer(obj)
 
 	// Iterator the table schema
 	tableSchema := txn.db.schema[table]
@@ -72,13 +70,13 @@ func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 	idSchema := tableSchema[IDIndexID]
 	idIndexer := idSchema.Indexer
 	id := make([]byte, IDLength)
-	idIndexer.FromObject(id, objPtr)
+	idIndexer.FromObject(id, obj)
 
-	idTxn := writableIndex[T](txn.rootTxn, idSchema.id)
-	previousObj := idTxn.Insert(id, obj)
+	idTxn := txn.writableIndex(idSchema.id)
+	previousObj := idTxn.Insert(id, &obj)
 	var existingPtr unsafe.Pointer
 	if previousObj != nil {
-		existingPtr = unsafe.Pointer(previousObj)
+		existingPtr = *previousObj
 	}
 
 	// On an update, there is an existing object with the given
@@ -90,7 +88,7 @@ func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 		}
 
 		indexer := indexSchema.Indexer
-		keySize := indexer.SizeFromObject(objPtr)
+		keySize := indexer.SizeFromObject(obj)
 		var b []byte
 		var n uint64
 		if keySize > 0 {
@@ -99,7 +97,7 @@ func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 			}
 
 			b = make([]byte, keySize)
-			n = indexSchema.Indexer.FromObject(b, objPtr)
+			n = indexSchema.Indexer.FromObject(b, obj)
 
 			// Handle non-unique index by computing a unique index.
 			// This is done by appending the primary key which must
@@ -109,7 +107,7 @@ func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 			}
 		}
 
-		indexTxn := writableIndex[T](txn.rootTxn, indexSchema.id)
+		indexTxn := txn.writableIndex(indexSchema.id)
 
 		// Handle the update by deleting from the index first
 		//nolint:nestif
@@ -140,7 +138,7 @@ func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 
 		// Update the value of the index
 		if b != nil {
-			indexTxn.Insert(b, obj)
+			indexTxn.Insert(b, &obj)
 		}
 	}
 	return previousObj, nil
@@ -148,12 +146,10 @@ func Insert[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
-func Delete[T any](txn *Txn, table uint64, obj *T) (*T, error) {
+func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error) {
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
-
-	objPtr := unsafe.Pointer(obj)
 
 	// Iterator the table schema.
 	tableSchema := txn.db.schema[table]
@@ -162,14 +158,14 @@ func Delete[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 	idSchema := tableSchema[IDIndexID]
 	idIndexer := idSchema.Indexer
 	id := make([]byte, IDLength)
-	idIndexer.FromObject(id, objPtr)
+	idIndexer.FromObject(id, obj)
 
-	idTxn := writableIndex[T](txn.rootTxn, idSchema.id)
+	idTxn := txn.writableIndex(idSchema.id)
 	previousObj := idTxn.Delete(id)
 	if previousObj == nil {
 		return nil, ErrNotFound
 	}
-	existingPtr := unsafe.Pointer(previousObj)
+	existingPtr := *previousObj
 
 	// Remove the object from all the indexes.
 	for indexID, indexSchema := range tableSchema {
@@ -193,7 +189,7 @@ func Delete[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 				copy(existingB[existingN:], id)
 			}
 
-			indexTxn := writableIndex[T](txn.rootTxn, indexSchema.id)
+			indexTxn := txn.writableIndex(indexSchema.id)
 
 			indexTxn.Delete(existingB)
 		}
@@ -206,8 +202,8 @@ func Delete[T any](txn *Txn, table uint64, obj *T) (*T, error) {
 //
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
-func First[T any](txn *Txn, table, index uint64, args ...any) (*T, error) {
-	iter, err := getIndexIterator[T](txn, false, table, index, args...)
+func (txn *Txn) First(table, index uint64, args ...any) (*unsafe.Pointer, error) {
+	iter, err := txn.getIndexIterator(false, table, index, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -227,14 +223,14 @@ func First[T any](txn *Txn, table, index uint64, args ...any) (*T, error) {
 //
 // See the documentation for ResultIterator to understand the behaviour of the
 // returned ResultIterator.
-func Iterator[T any](txn *Txn, table, index uint64, args ...any) (ResultIterator[T], error) {
-	indexIter, err := getIndexIterator[T](txn, true, table, index, args...)
+func (txn *Txn) Iterator(table, index uint64, args ...any) (ResultIterator, error) {
+	indexIter, err := txn.getIndexIterator(true, table, index, args...)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create an iterator
-	iter := &radixIterator[T]{
+	iter := &radixIterator{
 		iter: indexIter,
 	}
 
@@ -258,29 +254,28 @@ func Iterator[T any](txn *Txn, table, index uint64, args ...any) (ResultIterator
 // modifications to the index used by the iterator, the modification cache of the
 // index will be invalidated. This may result in some additional allocations if
 // the same node in the index is modified again.
-type ResultIterator[T any] interface {
+type ResultIterator interface {
 	// Next returns the next result from the iterator. If there are no more results
 	// nil is returned.
-	Next() *T
+	Next() *unsafe.Pointer
 }
 
 // radixIterator is used to wrap an underlying iradix iterator.
 // This is much more efficient than a sliceIterator as we are not
 // materializing the entire view.
-type radixIterator[T any] struct {
-	iter *iradix.Iterator[T]
+type radixIterator struct {
+	iter *iradix.Iterator[unsafe.Pointer]
 }
 
-func (r *radixIterator[T]) Next() *T {
+func (r *radixIterator) Next() *unsafe.Pointer {
 	return r.iter.Next()
 }
 
 // readableIndex returns a transaction usable for reading the given index in a
 // table. If the transaction is a write transaction with modifications, a clone of the
 // modified index will be returned.
-func readableIndex[T any](rootTxn *tree.Tree[any], indexID uint64, clone bool) *iradix.Txn[T] {
-	indexAny, dirty := rootTxn.Get(indexID)
-	index := indexAny.(*iradix.Txn[T])
+func (txn *Txn) readableIndex(indexID uint64, clone bool) *iradix.Txn[unsafe.Pointer] {
+	index, dirty := txn.rootTxn.Get(indexID)
 	if dirty {
 		if clone {
 			return index.Clone()
@@ -292,22 +287,20 @@ func readableIndex[T any](rootTxn *tree.Tree[any], indexID uint64, clone bool) *
 
 // writableIndex returns a transaction usable for modifying the
 // given index in a table.
-func writableIndex[T any](rootTxn *tree.Tree[any], indexID uint64) *iradix.Txn[T] {
-	indexAny, dirty := rootTxn.Get(indexID)
-	index := indexAny.(*iradix.Txn[T])
+func (txn *Txn) writableIndex(indexID uint64) *iradix.Txn[unsafe.Pointer] {
+	index, dirty := txn.rootTxn.Get(indexID)
 	if !dirty {
 		index = iradix.NewTxn(index.Root())
-		rootTxn.Set(indexID, index)
+		txn.rootTxn.Set(indexID, index)
 	}
 	return index
 }
 
-func getIndexIterator[T any](
-	txn *Txn,
+func (txn *Txn) getIndexIterator(
 	clone bool,
 	table, index uint64,
 	args ...any,
-) (*iradix.Iterator[T], error) {
+) (*iradix.Iterator[unsafe.Pointer], error) {
 	if table >= uint64(len(txn.db.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
@@ -343,7 +336,7 @@ func getIndexIterator[T any](
 		numOfArgs++
 	}
 
-	indexTxn := readableIndex[T](txn.rootTxn, indexSchema.id, clone)
+	indexTxn := txn.readableIndex(indexSchema.id, clone)
 	indexRoot := indexTxn.Root()
 
 	// Iterator an iterator over the index.

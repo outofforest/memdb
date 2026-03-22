@@ -1,11 +1,12 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-//nolint:goconst
+//nolint:goconst,testifylint
 package memdb_test
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
@@ -33,11 +34,11 @@ func TestMemDB_Isolation(t *testing.T) {
 
 		// Add two objects (with a gap between their IDs)
 		txn := db.Txn(true)
-		oldV, err := memdb.Insert(txn, 0, obj1a)
+		oldV, err := txn.Insert(0, unsafe.Pointer(obj1a))
 		require.NoError(t, err)
 		require.Nil(t, oldV)
 
-		oldV, err = memdb.Insert(txn, 0, obj3)
+		oldV, err = txn.Insert(0, unsafe.Pointer(obj3))
 		require.NoError(t, err)
 		require.Nil(t, oldV)
 		txn.Commit()
@@ -53,28 +54,24 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		oldV, err := memdb.Insert(txn1, 0, obj1b)
+		oldV, err := txn1.Insert(0, unsafe.Pointer(obj1b))
 		require.NoError(t, err)
-		require.Equal(t, obj1a, oldV)
+		require.Equal(t, obj1a, (*TestObject)(*oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
-		oldV, err = memdb.Insert(txn1, 0, obj2)
+		oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 		require.NoError(t, err)
 		require.Nil(t, oldV)
 
 		txn2 := db2.Txn(false)
-		out, err := memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		if out == nil {
-			t.Fatalf("should exist")
-		}
-		if out.Baz == "nope" {
-			t.Fatalf("read from snapshot should not observe uncommitted update (dirty read)")
-		}
+		require.NotNil(t, out)
+		require.Equal(t, "yep", (*TestObject)(*out).Baz)
 
-		out, err = memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
 		if out != nil {
 			t.Fatalf("read from snapshot should not observe uncommitted insert (dirty read)")
@@ -83,14 +80,10 @@ func TestMemDB_Isolation(t *testing.T) {
 		// New snapshot should not observe uncommitted writes
 		db3 := db.Snapshot()
 		txn3 := db3.Txn(false)
-		out, err = memdb.First[TestObject](txn3, 0, memdb.IDIndexID, id1)
+		out, err = txn3.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		if out == nil {
-			t.Fatalf("should exist")
-		}
-		if out.Baz == "nope" {
-			t.Fatalf("read from new snapshot should not observe uncommitted writes")
-		}
+		require.NotNil(t, out)
+		require.Equal(t, "yep", (*TestObject)(*out).Baz)
 	})
 
 	t.Run("transaction dirty read", func(t *testing.T) {
@@ -101,32 +94,27 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		oldV, err := memdb.Insert(txn1, 0, obj1b)
+		oldV, err := txn1.Insert(0, unsafe.Pointer(obj1b))
 		require.NoError(t, err)
-		require.Equal(t, obj1a, oldV)
+		require.NotNil(t, oldV)
+		require.Equal(t, obj1a, (*TestObject)(*oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
-		oldV, err = memdb.Insert(txn1, 0, obj2)
+		oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 		require.NoError(t, err)
 		require.Nil(t, oldV)
 
 		txn2 := db.Txn(false)
-		out, err := memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		if out == nil {
-			t.Fatalf("should exist")
-		}
-		if out.Baz == "nope" {
-			t.Fatalf("read from transaction should not observe uncommitted update (dirty read)")
-		}
+		require.NotNil(t, out)
+		require.Equal(t, "yep", (*TestObject)(*out).Baz)
 
-		out, err = memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
-		if out != nil {
-			t.Fatalf("read from transaction should not observe uncommitted insert (dirty read)")
-		}
+		require.Nil(t, out)
 	})
 
 	t.Run("snapshot non-repeatable read", func(t *testing.T) {
@@ -138,35 +126,31 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		oldV, err := memdb.Insert(txn1, 0, obj1b)
+		oldV, err := txn1.Insert(0, unsafe.Pointer(obj1b))
 		require.NoError(t, err)
-		require.Equal(t, obj1a, oldV)
+		require.NotNil(t, oldV)
+		require.Equal(t, obj1a, (*TestObject)(*oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
-		oldV, err = memdb.Insert[TestObject](txn1, 0, obj2)
+		oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 		require.NoError(t, err)
-		require.Equal(t, obj3, oldV)
+		require.NotNil(t, oldV)
+		require.Equal(t, obj3, (*TestObject)(*oldV))
 
 		// Commit
 		txn1.Commit()
 
 		txn2 := db2.Txn(false)
-		out, err := memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		if out == nil {
-			t.Fatalf("should exist")
-		}
-		if out.Baz == "nope" {
-			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
-		}
+		require.NotNil(t, out)
+		require.Equal(t, "yep", (*TestObject)(*out).Baz)
 
-		out, err = memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
-		if out != nil {
-			t.Fatalf("read from snapshot should not observe committed write from another transaction (non-repeatable read)")
-		}
+		require.Nil(t, out)
 	})
 
 	t.Run("transaction non-repeatable read", func(t *testing.T) {
@@ -177,36 +161,32 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.ID = id1
 		txn1 := db.Txn(true)
 		obj1b.Baz = "nope"
-		oldV, err := memdb.Insert(txn1, 0, obj1b)
+		oldV, err := txn1.Insert(0, unsafe.Pointer(obj1b))
 		require.NoError(t, err)
-		require.Equal(t, obj1a, oldV)
+		require.NotNil(t, oldV)
+		require.Equal(t, obj1a, (*TestObject)(*oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
-		oldV, err = memdb.Insert(txn1, 0, obj2)
+		oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 		require.NoError(t, err)
-		require.Equal(t, obj3, oldV)
+		require.NotNil(t, oldV)
+		require.Equal(t, obj3, (*TestObject)(*oldV))
 
 		txn2 := db.Txn(false)
 
 		// Commit
 		txn1.Commit()
 
-		out, err := memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id1)
+		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		if out == nil {
-			t.Fatalf("should exist")
-		}
-		if out.Baz == "nope" {
-			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
-		}
+		require.NotNil(t, out)
+		require.Equal(t, "yep", (*TestObject)(*out).Baz)
 
-		out, err = memdb.First[TestObject](txn2, 0, memdb.IDIndexID, id2)
+		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
-		if out != nil {
-			t.Fatalf("read from transaction should not observe committed write from another transaction (non-repeatable read)")
-		}
+		require.Nil(t, out)
 	})
 
 	t.Run("snapshot commits are unobservable", func(t *testing.T) {
@@ -217,19 +197,16 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1 := testObj()
 		obj1.ID = id1
 		obj1.Baz = "also"
-		oldV, err := memdb.Insert(txn2, 0, obj1)
+		oldV, err := txn2.Insert(0, unsafe.Pointer(obj1))
 		require.NoError(t, err)
-		require.Equal(t, obj1a, oldV)
+		require.NotNil(t, oldV)
+		require.Equal(t, obj1a, (*TestObject)(*oldV))
 		txn2.Commit()
 
 		txn1 := db.Txn(false)
-		out, err := memdb.First[TestObject](txn1, 0, memdb.IDIndexID, id1)
+		out, err := txn1.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		if out == nil {
-			t.Fatalf("should exist")
-		}
-		if out.Baz == "also" {
-			t.Fatalf("commit from snapshot should never be observed")
-		}
+		require.NotNil(t, out)
+		require.Equal(t, "yep", (*TestObject)(*out).Baz)
 	})
 }
