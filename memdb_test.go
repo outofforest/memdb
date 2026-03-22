@@ -1,12 +1,10 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-//nolint:testifylint
 package memdb_test
 
 import (
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/require"
 
@@ -51,48 +49,4 @@ func TestMemDB_PanicOnDoubleCommit(t *testing.T) {
 	require.Panics(t, func() {
 		tx.Commit()
 	})
-}
-
-func TestMemDB_Snapshot(t *testing.T) {
-	db, err := memdb.NewMemDB(testValidSchema())
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
-	// Add an object
-	obj := testObj()
-	txn := db.Txn(true)
-	oldV, err := txn.Insert(0, unsafe.Pointer(obj))
-	require.NoError(t, err)
-	require.Nil(t, oldV)
-	txn.Commit()
-
-	// Clone the db
-	db2 := db.Snapshot()
-
-	// Remove the object
-	txn = db.Txn(true)
-	oldV, err = txn.Delete(0, unsafe.Pointer(obj))
-	require.NoError(t, err)
-	require.Equal(t, obj, (*TestObject)(*oldV))
-	txn.Commit()
-
-	// Object should exist in second snapshot but not first
-	txn = db.Txn(false)
-	out, err := txn.First(0, memdb.IDIndexID, obj.ID)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if out != nil {
-		t.Fatalf("should not exist %#v", out)
-	}
-
-	txn = db2.Txn(true)
-	out, err = txn.First(0, memdb.IDIndexID, obj.ID)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if out == nil {
-		t.Fatalf("should exist")
-	}
 }

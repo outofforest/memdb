@@ -31,10 +31,22 @@ const (
 // Txn is a transaction against a MemDB.
 // This can be a read or write transaction.
 type Txn struct {
-	db             *MemDB
-	write          bool
-	rootTxn        *tree.Tree[*iradix.Txn[unsafe.Pointer]]
-	oldRootPointer unsafe.Pointer
+	schema        dbSchema
+	write         bool
+	root          unsafe.Pointer
+	parentRoot    *unsafe.Pointer
+	oldParentRoot unsafe.Pointer
+}
+
+// Txn is used to start a new subtransaction in either read or write mode.
+func (txn *Txn) Txn(write bool) *Txn {
+	return &Txn{
+		schema:        txn.schema,
+		write:         write,
+		root:          unsafe.Pointer(txn.getRoot().Next()),
+		parentRoot:    &txn.root,
+		oldParentRoot: txn.root,
+	}
 }
 
 // Commit is used to finalize this transaction.
@@ -46,10 +58,10 @@ func (txn *Txn) Commit() {
 		panic("commit called on read-only transaction")
 	}
 
-	// Update the root of the DB.
-	previousRootPointer := atomic.SwapPointer(&txn.db.root, unsafe.Pointer(txn.rootTxn))
-	if previousRootPointer != txn.oldRootPointer {
-		panic("root pointer has changed during transaction")
+	// Update the parentRoot of the DB.
+	previousRoot := atomic.SwapPointer(txn.parentRoot, txn.root)
+	if previousRoot != txn.oldParentRoot {
+		panic("parentRoot pointer has changed during transaction")
 	}
 }
 
@@ -59,12 +71,12 @@ func (txn *Txn) Commit() {
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
 func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error) {
-	if table >= uint64(len(txn.db.schema)) {
+	if table >= uint64(len(txn.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
 
 	// Iterator the table schema
-	tableSchema := txn.db.schema[table]
+	tableSchema := txn.schema[table]
 
 	// Iterator the primary ID of the object
 	idSchema := tableSchema[IDIndexID]
@@ -147,12 +159,12 @@ func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
 func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error) {
-	if table >= uint64(len(txn.db.schema)) {
+	if table >= uint64(len(txn.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
 
 	// Iterator the table schema.
-	tableSchema := txn.db.schema[table]
+	tableSchema := txn.schema[table]
 
 	// Iterator the primary ID of the object.
 	idSchema := tableSchema[IDIndexID]
@@ -275,7 +287,7 @@ func (r *radixIterator) Next() *unsafe.Pointer {
 // table. If the transaction is a write transaction with modifications, a clone of the
 // modified index will be returned.
 func (txn *Txn) readableIndex(indexID uint64, clone bool) *iradix.Txn[unsafe.Pointer] {
-	index, dirty := txn.rootTxn.Get(indexID)
+	index, dirty := txn.getRoot().Get(indexID)
 	if dirty {
 		if clone {
 			return index.Clone()
@@ -288,10 +300,11 @@ func (txn *Txn) readableIndex(indexID uint64, clone bool) *iradix.Txn[unsafe.Poi
 // writableIndex returns a transaction usable for modifying the
 // given index in a table.
 func (txn *Txn) writableIndex(indexID uint64) *iradix.Txn[unsafe.Pointer] {
-	index, dirty := txn.rootTxn.Get(indexID)
+	root := txn.getRoot()
+	index, dirty := root.Get(indexID)
 	if !dirty {
 		index = iradix.NewTxn(index.Root())
-		txn.rootTxn.Set(indexID, index)
+		root.Set(indexID, index)
 	}
 	return index
 }
@@ -301,11 +314,11 @@ func (txn *Txn) getIndexIterator(
 	table, index uint64,
 	args ...any,
 ) (*iradix.Iterator[unsafe.Pointer], error) {
-	if table >= uint64(len(txn.db.schema)) {
+	if table >= uint64(len(txn.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
 	// Iterator the table schema.
-	tableSchema := txn.db.schema[table]
+	tableSchema := txn.schema[table]
 
 	// Iterator the index schema.
 	indexSchema, ok := tableSchema[index]
@@ -396,4 +409,8 @@ loop:
 		indexIter.Back(backCount)
 	}
 	return indexIter, nil
+}
+
+func (txn *Txn) getRoot() *tree.Tree[*iradix.Txn[unsafe.Pointer]] {
+	return (*tree.Tree[*iradix.Txn[unsafe.Pointer]])(txn.root)
 }
