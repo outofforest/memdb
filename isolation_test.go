@@ -36,11 +36,11 @@ func TestMemDB_Isolation(t *testing.T) {
 		txn := db.Txn(true)
 		oldV, err := txn.Insert(0, unsafe.Pointer(obj1a))
 		require.NoError(t, err)
-		require.Nil(t, oldV)
+		require.Zero(t, oldV)
 
 		oldV, err = txn.Insert(0, unsafe.Pointer(obj3))
 		require.NoError(t, err)
-		require.Nil(t, oldV)
+		require.Zero(t, oldV)
 		txn.Commit()
 		return db
 	}
@@ -55,25 +55,25 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.Baz = "nope"
 		oldV, err := txn1.Insert(0, unsafe.Pointer(obj1b))
 		require.NoError(t, err)
-		require.NotNil(t, oldV)
-		require.Equal(t, obj1a, (*TestObject)(*oldV))
+		require.NotZero(t, oldV)
+		require.Equal(t, obj1a, (*TestObject)(oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id2
 		oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 		require.NoError(t, err)
-		require.Nil(t, oldV)
+		require.Zero(t, oldV)
 
 		txn2 := db.Txn(false)
 		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		require.NotNil(t, out)
-		require.Equal(t, "yep", (*TestObject)(*out).Baz)
+		require.NotZero(t, out)
+		require.Equal(t, "yep", (*TestObject)(out).Baz)
 
 		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
-		require.Nil(t, out)
+		require.Zero(t, out)
 	})
 
 	t.Run("transaction non-repeatable read", func(t *testing.T) {
@@ -86,16 +86,16 @@ func TestMemDB_Isolation(t *testing.T) {
 		obj1b.Baz = "nope"
 		oldV, err := txn1.Insert(0, unsafe.Pointer(obj1b))
 		require.NoError(t, err)
-		require.NotNil(t, oldV)
-		require.Equal(t, obj1a, (*TestObject)(*oldV))
+		require.NotZero(t, oldV)
+		require.Equal(t, obj1a, (*TestObject)(oldV))
 
 		// Insert an object
 		obj2 := testObj()
 		obj2.ID = id3
 		oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 		require.NoError(t, err)
-		require.NotNil(t, oldV)
-		require.Equal(t, obj3, (*TestObject)(*oldV))
+		require.NotZero(t, oldV)
+		require.Equal(t, obj3, (*TestObject)(oldV))
 
 		txn2 := db.Txn(false)
 
@@ -104,11 +104,11 @@ func TestMemDB_Isolation(t *testing.T) {
 
 		out, err := txn2.First(0, memdb.IDIndexID, id1)
 		require.NoError(t, err)
-		require.NotNil(t, out)
-		require.Equal(t, "yep", (*TestObject)(*out).Baz)
+		require.NotZero(t, out)
+		require.Equal(t, "yep", (*TestObject)(out).Baz)
 
 		out, err = txn2.First(0, memdb.IDIndexID, id2)
 		require.NoError(t, err)
-		require.Nil(t, out)
+		require.Zero(t, out)
 	})
 }

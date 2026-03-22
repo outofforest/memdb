@@ -3,7 +3,7 @@ module github.com/outofforest/memdb
 go 1.25.0
 
 require (
-	github.com/outofforest/iradix v1.9.1
+	github.com/outofforest/iradix v1.10.0
 	github.com/pkg/errors v0.9.1
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.11.1

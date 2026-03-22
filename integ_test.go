@@ -36,19 +36,19 @@ func TestTxn_Isolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj3))
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// Results should show up in this transaction
 	raw, err := txn1.First(0, memdb.IDIndexID)
@@ -116,15 +116,15 @@ func TestTxn_DontCommit(t *testing.T) {
 
 	oldV, err := txn1.Insert(0, unsafe.Pointer(obj1))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj3))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// Leve the tx uncommitted.
 
@@ -134,7 +134,7 @@ func TestTxn_DontCommit(t *testing.T) {
 	// Nothing should show up in this transaction
 	raw, err := txn2.First(0, memdb.IDIndexID)
 	require.NoError(t, err)
-	require.Nil(t, raw)
+	require.Zero(t, raw)
 }
 
 func TestTxn_SubTx(t *testing.T) {
@@ -158,11 +158,11 @@ func TestTxn_SubTx(t *testing.T) {
 
 	oldV, err := txn1.Insert(0, unsafe.Pointer(obj1))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// Create subtransaction transaction
 	txn2 := txn1.Txn(true)
@@ -173,35 +173,35 @@ func TestTxn_SubTx(t *testing.T) {
 	// Remove object from txn2
 	oldV, err = txn2.Delete(0, unsafe.Pointer(obj1))
 	require.NoError(t, err)
-	require.NotNil(t, oldV)
+	require.NotZero(t, oldV)
 
 	// Add object to txn2
 	oldV, err = txn2.Insert(0, unsafe.Pointer(obj3))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// Verify that changes are not visible in txn1.
 	v, err := txn1.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotZero(t, v)
 
 	v, err = txn1.First(0, memdb.IDIndexID, obj3.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	// Verify that changes are visible in txn2.
 	v, err = txn2.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn2.First(0, memdb.IDIndexID, obj3.ID)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotZero(t, v)
 
 	// Verify that state from txn1 is visible in txn2.
 	v, err = txn2.First(0, memdb.IDIndexID, obj2.ID)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotZero(t, v)
 
 	// Commit txn2
 	txn2.Commit()
@@ -212,36 +212,36 @@ func TestTxn_SubTx(t *testing.T) {
 	// Verify that changes are visible in txn1.
 	v, err = txn1.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn1.First(0, memdb.IDIndexID, obj3.ID)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotZero(t, v)
 
 	// Verify that changes are not visible in the other top transaction.
 	v, err = txn3.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn3.First(0, memdb.IDIndexID, obj2.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn3.First(0, memdb.IDIndexID, obj3.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn4.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn4.First(0, memdb.IDIndexID, obj2.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn4.First(0, memdb.IDIndexID, obj3.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	// Commit top transaction.
 	txn1.Commit()
@@ -252,15 +252,15 @@ func TestTxn_SubTx(t *testing.T) {
 	// Verify that entities are visible.
 	v, err = txn5.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, v)
+	require.Zero(t, v)
 
 	v, err = txn5.First(0, memdb.IDIndexID, obj2.ID)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotZero(t, v)
 
 	v, err = txn5.First(0, memdb.IDIndexID, obj3.ID)
 	require.NoError(t, err)
-	require.NotNil(t, v)
+	require.NotZero(t, v)
 }
 
 func TestTxn_ReadOnlySubTxFailsOnCommit(t *testing.T) {
@@ -304,22 +304,22 @@ func TestComplexDB(t *testing.T) {
 	// Iterator using a full name
 	person, err := txn.First(peopleTableID, personNameIndex.ID(), "Armon", "Dadgar")
 	require.NoError(t, err)
-	require.NotNil(t, person)
+	require.NotZero(t, person)
 
 	person, err = txn.First(peopleTableID, personAgeIndex.ID(), uint8(27))
 	require.NoError(t, err)
-	require.NotNil(t, person)
+	require.NotZero(t, person)
 
 	person, err = txn.First(peopleTableID, personNegativeAgeIndex.ID(), int8(-26))
 	require.NoError(t, err)
-	require.NotNil(t, person)
-	require.Equal(t, "Armon", (*TestPerson)(*person).First)
+	require.NotZero(t, person)
+	require.Equal(t, "Armon", (*TestPerson)(person).First)
 
 	// Where in the world is mitchell hashimoto?
 	person, err = txn.First(peopleTableID, personNameIndex.ID(), "Mitchell")
 	require.NoError(t, err)
-	require.NotNil(t, person)
-	require.Equal(t, "Mitchell", (*TestPerson)(*person).First)
+	require.NotZero(t, person)
+	require.Equal(t, "Mitchell", (*TestPerson)(person).First)
 }
 
 type TestObject struct {
@@ -386,31 +386,31 @@ func testPopulateData(t *testing.T, db *memdb.MemDB) {
 	// Insert it all
 	oldPerson, err := txn.Insert(peopleTableID, unsafe.Pointer(&person1))
 	require.NoError(t, err)
-	require.Nil(t, oldPerson)
+	require.Zero(t, oldPerson)
 
 	oldPerson, err = txn.Insert(peopleTableID, unsafe.Pointer(&person2))
 	require.NoError(t, err)
-	require.Nil(t, oldPerson)
+	require.Zero(t, oldPerson)
 
 	oldPlace, err := txn.Insert(placesTableID, unsafe.Pointer(&place1))
 	require.NoError(t, err)
-	require.Nil(t, oldPlace)
+	require.Zero(t, oldPlace)
 
 	oldPlace, err = txn.Insert(placesTableID, unsafe.Pointer(&place2))
 	require.NoError(t, err)
-	require.Nil(t, oldPlace)
+	require.Zero(t, oldPlace)
 
 	oldPlace, err = txn.Insert(placesTableID, unsafe.Pointer(&place3))
 	require.NoError(t, err)
-	require.Nil(t, oldPlace)
+	require.Zero(t, oldPlace)
 
 	oldVisit, err := txn.Insert(visitsTableID, unsafe.Pointer(&visit1))
 	require.NoError(t, err)
-	require.Nil(t, oldVisit)
+	require.Zero(t, oldVisit)
 
 	oldVisit, err = txn.Insert(visitsTableID, unsafe.Pointer(&visit2))
 	require.NoError(t, err)
-	require.Nil(t, oldVisit)
+	require.Zero(t, oldVisit)
 
 	// Commit
 	txn.Commit()

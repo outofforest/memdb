@@ -402,18 +402,18 @@ func TestEntityUpdateWithFieldIndex(t *testing.T) {
 
 	old, err := txn.Insert(0, unsafe.Pointer(e))
 	requireT.NoError(err)
-	requireT.Nil(old)
+	requireT.Zero(old)
 	txn.Commit()
 
 	txn = db.Txn(true)
 	e2, err := txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
-	requireT.NotNil(e2)
-	requireT.Equal(e, (*o)(*e2))
+	requireT.NotZero(e2)
+	requireT.Equal(e, (*o)(e2))
 
 	e3, err := txn.First(0, index.ID(), uint64(1))
 	requireT.NoError(err)
-	requireT.NotNil(e3)
+	requireT.NotZero(e3)
 	requireT.Equal(e2, e3)
 
 	e4 := &o{
@@ -423,24 +423,24 @@ func TestEntityUpdateWithFieldIndex(t *testing.T) {
 
 	old, err = txn.Insert(0, unsafe.Pointer(e4))
 	requireT.NoError(err)
-	requireT.NotNil(old)
-	requireT.Equal(e, (*o)(*old))
+	requireT.NotZero(old)
+	requireT.Equal(e, (*o)(old))
 	txn.Commit()
 
 	txn = db.Txn(false)
 	e2, err = txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
-	requireT.NotNil(e2)
-	requireT.Equal(e4, (*o)(*e2))
+	requireT.NotZero(e2)
+	requireT.Equal(e4, (*o)(e2))
 
 	e3, err = txn.First(0, index.ID(), uint64(2))
 	requireT.NoError(err)
-	requireT.NotNil(e3)
+	requireT.NotZero(e3)
 	requireT.Equal(e2, e3)
 
 	e3, err = txn.First(0, index.ID(), uint64(1))
 	requireT.NoError(err)
-	requireT.Nil(e3)
+	requireT.Zero(e3)
 }
 
 func TestEntityDeleteWithFieldIndex(t *testing.T) {
@@ -466,34 +466,34 @@ func TestEntityDeleteWithFieldIndex(t *testing.T) {
 
 	old, err := txn.Insert(0, unsafe.Pointer(e))
 	requireT.NoError(err)
-	requireT.Nil(old)
+	requireT.Zero(old)
 	txn.Commit()
 
 	txn = db.Txn(true)
 	e2, err := txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
-	requireT.NotNil(e2)
-	requireT.Equal(e, (*o)(*e2))
+	requireT.NotZero(e2)
+	requireT.Equal(e, (*o)(e2))
 
 	e3, err := txn.First(0, index.ID(), uint64(1))
 	requireT.NoError(err)
-	requireT.NotNil(e3)
+	requireT.NotZero(e3)
 	requireT.Equal(e2, e3)
 
 	old, err = txn.Delete(0, unsafe.Pointer(e))
 	requireT.NoError(err)
-	requireT.NotNil(old)
-	requireT.Equal(e, (*o)(*old))
+	requireT.NotZero(old)
+	requireT.Equal(e, (*o)(old))
 	txn.Commit()
 
 	txn = db.Txn(false)
 	e2, err = txn.First(0, memdb.IDIndexID, eID)
 	requireT.NoError(err)
-	requireT.Nil(e2)
+	requireT.Zero(e2)
 
 	e3, err = txn.First(0, index.ID(), uint64(1))
 	requireT.NoError(err)
-	requireT.Nil(e3)
+	requireT.Zero(e3)
 }
 
 type verifyPart struct {
