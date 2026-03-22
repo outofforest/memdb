@@ -17,19 +17,8 @@ import (
 
 // Config is the memdb config.
 type Config struct {
-	Indices          []Index
-	treeConstructors []func() (reflect.Type, func() any)
-}
-
-// ConfigureEntity adds entity to the config.
-func ConfigureEntity[T any](c *Config) {
-	c.treeConstructors = append(c.treeConstructors, treeConstructor[T])
-}
-
-func treeConstructor[T any]() (reflect.Type, func() any) {
-	return reflect.TypeFor[T](), func() any {
-		return iradix.NewTxn(iradix.New[T]())
-	}
+	Entities []reflect.Type
+	Indices  []Index
 }
 
 // MemDB is an in-memory database providing Atomicity, Consistency, and
@@ -46,23 +35,18 @@ func treeConstructor[T any]() (reflect.Type, func() any) {
 // even after they've been deleted from MemDB since there may still be older
 // snapshots of the DB being read from other goroutines.
 type MemDB struct {
-	schema DBSchema
+	schema dbSchema
 	root   unsafe.Pointer // *tree.Tree underneath
 }
 
 // NewMemDB creates a new MemDB with the given schema.
 func NewMemDB(config Config) (*MemDB, error) {
-	entities := []reflect.Type{}
 	indicesByEntity := map[reflect.Type][]Index{}
-	treeConstructors := map[reflect.Type]func() any{}
-	for _, c := range config.treeConstructors {
-		eType, eTreeConstructor := c()
+	for _, eType := range config.Entities {
 		if _, exists := indicesByEntity[eType]; exists {
 			return nil, fmt.Errorf("duplicated entity %s", eType)
 		}
-		entities = append(entities, eType)
 		indicesByEntity[eType] = nil
-		treeConstructors[eType] = eTreeConstructor
 	}
 
 	for _, i := range config.Indices {
@@ -73,17 +57,16 @@ func NewMemDB(config Config) (*MemDB, error) {
 		indicesByEntity[t] = append(indicesByEntity[t], i)
 	}
 
-	root := tree.New[any]()
+	root := tree.New[*iradix.Txn[unsafe.Pointer]]()
 	db := &MemDB{
-		schema: make(DBSchema, 0, len(indicesByEntity)),
+		schema: make(dbSchema, 0, len(indicesByEntity)),
 		root:   unsafe.Pointer(root),
 	}
 
 	var indexID uint64
-	for _, eT := range entities {
-		t := TableSchema{}
+	for _, eT := range config.Entities {
+		t := tableSchema{}
 		db.schema = append(db.schema, t)
-		treeConstructor := treeConstructors[eT]
 
 		indexID++
 		t[IDIndexID] = &IndexSchema{
@@ -91,14 +74,14 @@ func NewMemDB(config Config) (*MemDB, error) {
 			Indexer: IDIndexer{},
 			id:      indexID,
 		}
-		root.Set(indexID, treeConstructor())
+		root.Set(indexID, iradix.NewTxn(iradix.New[unsafe.Pointer]()))
 
 		for _, index := range indicesByEntity[eT] {
 			indexID++
 			indexSchema := index.Schema()
 			indexSchema.id = indexID
 			t[index.ID()] = indexSchema
-			root.Set(indexID, treeConstructor())
+			root.Set(indexID, iradix.NewTxn(iradix.New[unsafe.Pointer]()))
 		}
 	}
 
@@ -137,7 +120,7 @@ func (db *MemDB) Snapshot() *MemDB {
 }
 
 // getRoot is used to do an atomic load of the root pointer.
-func (db *MemDB) getRoot() (*tree.Tree[any], unsafe.Pointer) {
+func (db *MemDB) getRoot() (*tree.Tree[*iradix.Txn[unsafe.Pointer]], unsafe.Pointer) {
 	pointer := atomic.LoadPointer(&db.root)
-	return (*tree.Tree[any])(pointer), pointer
+	return (*tree.Tree[*iradix.Txn[unsafe.Pointer]])(pointer), pointer
 }

@@ -10,17 +10,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-// DBSchema is the schema to use for the full database with a MemDB instance.
+// dbSchema is the schema to use for the full database with a MemDB instance.
 //
 // MemDB will require a valid schema. Schema validation can be tested using
 // the Validate function. Calling this function is recommended in unit tests.
-type DBSchema []TableSchema
+type dbSchema []tableSchema
 
-// TableSchema contains indexes.
-type TableSchema map[uint64]*IndexSchema
+// tableSchema contains indexes.
+type tableSchema map[uint64]*IndexSchema
 
 // Validate validates the schema.
-func (s DBSchema) Validate() error {
+func (s dbSchema) Validate() error {
 	if len(s) == 0 {
 		return errors.New("schema is empty")
 	}

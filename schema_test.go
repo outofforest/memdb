@@ -4,6 +4,7 @@
 package memdb_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/outofforest/memdb"
@@ -45,10 +46,10 @@ var (
 )
 
 func testValidSchema() memdb.Config {
-	c := memdb.Config{
+	return memdb.Config{
+		Entities: []reflect.Type{
+			reflect.TypeFor[TestObject](),
+		},
 		Indices: []memdb.Index{indexFoo},
 	}
-	memdb.ConfigureEntity[TestObject](&c)
-
-	return c
 }
