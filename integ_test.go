@@ -101,7 +101,7 @@ func TestTxn_DontCommit(t *testing.T) {
 	db := testDB(t)
 	txn1 := db.Txn(true)
 
-	obj := &TestObject{
+	obj1 := &TestObject{
 		ID:  memdb.ID{1},
 		Foo: "abc",
 	}
@@ -114,22 +114,16 @@ func TestTxn_DontCommit(t *testing.T) {
 		Foo: "xyz",
 	}
 
-	oldV, err := txn1.Insert(0, unsafe.Pointer(obj))
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	oldV, err := txn1.Insert(0, unsafe.Pointer(obj1))
+	require.NoError(t, err)
 	require.Nil(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	require.NoError(t, err)
 	require.Nil(t, oldV)
 
 	oldV, err = txn1.Insert(0, unsafe.Pointer(obj3))
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	require.NoError(t, err)
 	require.Nil(t, oldV)
 
 	// Leve the tx uncommitted.
@@ -139,12 +133,167 @@ func TestTxn_DontCommit(t *testing.T) {
 
 	// Nothing should show up in this transaction
 	raw, err := txn2.First(0, memdb.IDIndexID)
-	if err != nil {
-		t.Fatalf("err: %v", err)
+	require.NoError(t, err)
+	require.Nil(t, raw)
+}
+
+func TestTxn_SubTx(t *testing.T) {
+	db := testDB(t)
+	txn1 := db.Txn(true)
+
+	obj1 := &TestObject{
+		ID:  memdb.ID{1},
+		Foo: "abc",
 	}
-	if raw != nil {
-		t.Fatalf("bad: %#v", raw)
+	obj2 := &TestObject{
+		ID:  memdb.ID{2},
+		Foo: "xyz",
 	}
+	obj3 := &TestObject{
+		ID:  memdb.ID{3},
+		Foo: "xyz",
+	}
+
+	// Init txn1
+
+	oldV, err := txn1.Insert(0, unsafe.Pointer(obj1))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	oldV, err = txn1.Insert(0, unsafe.Pointer(obj2))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	// Create subtransaction transaction
+	txn2 := txn1.Txn(true)
+
+	// Also create new top transaction.
+	txn3 := db.Txn(false)
+
+	// Remove object from txn2
+	oldV, err = txn2.Delete(0, unsafe.Pointer(obj1))
+	require.NoError(t, err)
+	require.NotNil(t, oldV)
+
+	// Add object to txn2
+	oldV, err = txn2.Insert(0, unsafe.Pointer(obj3))
+	require.NoError(t, err)
+	require.Nil(t, oldV)
+
+	// Verify that changes are not visible in txn1.
+	v, err := txn1.First(0, memdb.IDIndexID, obj1.ID)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	v, err = txn1.First(0, memdb.IDIndexID, obj3.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	// Verify that changes are visible in txn2.
+	v, err = txn2.First(0, memdb.IDIndexID, obj1.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn2.First(0, memdb.IDIndexID, obj3.ID)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	// Verify that state from txn1 is visible in txn2.
+	v, err = txn2.First(0, memdb.IDIndexID, obj2.ID)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	// Commit txn2
+	txn2.Commit()
+
+	// Also create new top transaction.
+	txn4 := db.Txn(false)
+
+	// Verify that changes are visible in txn1.
+	v, err = txn1.First(0, memdb.IDIndexID, obj1.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn1.First(0, memdb.IDIndexID, obj3.ID)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	// Verify that changes are not visible in the other top transaction.
+	v, err = txn3.First(0, memdb.IDIndexID, obj1.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn3.First(0, memdb.IDIndexID, obj2.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn3.First(0, memdb.IDIndexID, obj3.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn4.First(0, memdb.IDIndexID, obj1.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn4.First(0, memdb.IDIndexID, obj2.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn4.First(0, memdb.IDIndexID, obj3.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	// Commit top transaction.
+	txn1.Commit()
+
+	// Create new top transaction.
+	txn5 := db.Txn(false)
+
+	// Verify that entities are visible.
+	v, err = txn5.First(0, memdb.IDIndexID, obj1.ID)
+	require.NoError(t, err)
+	require.Nil(t, v)
+
+	v, err = txn5.First(0, memdb.IDIndexID, obj2.ID)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	v, err = txn5.First(0, memdb.IDIndexID, obj3.ID)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+}
+
+func TestTxn_ReadOnlySubTxFailsOnCommit(t *testing.T) {
+	db := testDB(t)
+	txn1 := db.Txn(true)
+	txn2 := txn1.Txn(false)
+
+	require.Panics(t, func() {
+		txn2.Commit()
+	})
+}
+
+func TestTxn_SubTxFailsOnConcurrentCommit(t *testing.T) {
+	db := testDB(t)
+	txn1 := db.Txn(true)
+	txn2 := txn1.Txn(true)
+	txn3 := txn1.Txn(true)
+
+	txn2.Commit()
+	require.Panics(t, func() {
+		txn3.Commit()
+	})
+}
+
+func TestTxn_SubTxMayCommitToReadOnlyTx(t *testing.T) {
+	db := testDB(t)
+	txn1 := db.Txn(false)
+	txn2 := txn1.Txn(true)
+
+	txn2.Commit()
+	require.Panics(t, func() {
+		txn1.Commit()
+	})
 }
 
 func TestComplexDB(t *testing.T) {

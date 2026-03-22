@@ -94,28 +94,14 @@ func NewMemDB(config Config) (*MemDB, error) {
 }
 
 // Txn is used to start a new transaction in either read or write mode.
-// There can only be a single concurrent writer, but any number of readers.
 func (db *MemDB) Txn(write bool) *Txn {
 	root, rootPointer := db.getRoot()
 	return &Txn{
-		db:             db,
-		write:          write,
-		rootTxn:        root.Next(),
-		oldRootPointer: rootPointer,
-	}
-}
-
-// Snapshot is used to capture a point-in-time snapshot of the database that
-// will not be affected by any write operations to the existing DB.
-//
-// If MemDB is storing reference-based values (pointers, maps, slices, etc.),
-// the Snapshot will not deep copy those values. Therefore, it is still unsafe
-// to modify any inserted values in either DB.
-func (db *MemDB) Snapshot() *MemDB {
-	_, rootPointer := db.getRoot()
-	return &MemDB{
-		schema: db.schema,
-		root:   rootPointer,
+		schema:        db.schema,
+		write:         write,
+		root:          unsafe.Pointer(root.Next()),
+		parentRoot:    &db.root,
+		oldParentRoot: rootPointer,
 	}
 }
 
