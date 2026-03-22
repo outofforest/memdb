@@ -23,12 +23,12 @@ func TestTxn_Insert_First(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	raw, err := txn.First(0, memdb.IDIndexID, obj.ID)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj, (*TestObject)(raw))
 }
 
 func TestTxn_InsertUpdate_First(t *testing.T) {
@@ -43,12 +43,12 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	raw, err := txn.First(0, memdb.IDIndexID, obj.ID)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj, (*TestObject)(raw))
 
 	// Update the object
 	obj2 := &TestObject{
@@ -57,13 +57,13 @@ func TestTxn_InsertUpdate_First(t *testing.T) {
 	}
 	oldV, err = txn.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.NotNil(t, oldV)
-	require.Equal(t, obj, (*TestObject)(*oldV))
+	require.NotZero(t, oldV)
+	require.Equal(t, obj, (*TestObject)(oldV))
 
 	raw, err = txn.First(0, memdb.IDIndexID, obj.ID)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj2, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj2, (*TestObject)(raw))
 }
 
 func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
@@ -76,12 +76,12 @@ func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
 	}
 	oldV, err := txn.Insert(0, unsafe.Pointer(obj))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	raw, err := txn.First(0, indexFoo.ID(), obj.Foo)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj, (*TestObject)(raw))
 
 	// Update the object
 	obj2 := &TestObject{
@@ -90,18 +90,18 @@ func TestTxn_InsertUpdate_First_NonUnique(t *testing.T) {
 	}
 	oldV, err = txn.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.NotNil(t, oldV)
-	require.Equal(t, obj, (*TestObject)(*oldV))
+	require.NotZero(t, oldV)
+	require.Equal(t, obj, (*TestObject)(oldV))
 
 	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj2, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj2, (*TestObject)(raw))
 
 	// Lookup of the old value should fail
 	raw, err = txn.First(0, indexFoo.ID(), obj.Foo)
 	require.NoError(t, err)
-	require.Nil(t, raw)
+	require.Zero(t, raw)
 }
 
 func TestTxn_First_NonUnique_Multiple(t *testing.T) {
@@ -123,28 +123,28 @@ func TestTxn_First_NonUnique_Multiple(t *testing.T) {
 
 	oldV, err := txn.Insert(0, unsafe.Pointer(obj))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn.Insert(0, unsafe.Pointer(obj3))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// The first object has a unique secondary value
 	raw, err := txn.First(0, indexFoo.ID(), obj.Foo)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj, (*TestObject)(raw))
 
 	// Second and third object share secondary value,
 	// but the primary ID of obj2 should be first
 	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj2, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj2, (*TestObject)(raw))
 }
 
 func TestTxn_InsertDelete_Simple(t *testing.T) {
@@ -162,18 +162,18 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 
 	oldV, err := txn.Insert(0, unsafe.Pointer(obj1))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// Check the shared secondary value,
 	// but the primary ID of obj2 should be first
 	raw, err := txn.First(0, indexFoo.ID(), obj2.Foo)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj1, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj1, (*TestObject)(raw))
 
 	// Commit and start a new transaction
 	txn.Commit()
@@ -182,18 +182,18 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	// Delete obj1
 	oldV, err = txn.Delete(0, unsafe.Pointer(obj1))
 	require.NoError(t, err)
-	require.NotNil(t, oldV)
-	require.Equal(t, obj1, (*TestObject)(*oldV))
+	require.NotZero(t, oldV)
+	require.Equal(t, obj1, (*TestObject)(oldV))
 
 	// Delete obj1 again and expect ErrNotFound
 	oldV, err = txn.Delete(0, unsafe.Pointer(obj1))
 	require.ErrorIs(t, err, memdb.ErrNotFound)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	// Lookup of the primary obj1 should fail
 	raw, err = txn.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, raw)
+	require.Zero(t, raw)
 
 	// Commit and start a new read transaction
 	txn.Commit()
@@ -202,14 +202,14 @@ func TestTxn_InsertDelete_Simple(t *testing.T) {
 	// Lookup of the primary obj1 should fail
 	raw, err = txn.First(0, memdb.IDIndexID, obj1.ID)
 	require.NoError(t, err)
-	require.Nil(t, raw)
+	require.Zero(t, raw)
 
 	// Check the shared secondary value,
 	// but the primary ID of obj2 should be first
 	raw, err = txn.First(0, indexFoo.ID(), obj2.Foo)
 	require.NoError(t, err)
-	require.NotNil(t, raw)
-	require.Equal(t, obj2, (*TestObject)(*raw))
+	require.NotZero(t, raw)
+	require.Equal(t, obj2, (*TestObject)(raw))
 }
 
 func TestTxn_InsertGet_Simple(t *testing.T) {
@@ -227,19 +227,19 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 
 	oldV, err := txn.Insert(0, unsafe.Pointer(obj1))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn.Insert(0, unsafe.Pointer(obj2))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	checkResult := func(txn *memdb.Txn) {
 		// Attempt a row scan on the ID
 		result, err := txn.Iterator(0, memdb.IDIndexID)
 		require.NoError(t, err)
-		require.Equal(t, obj1, (*TestObject)(*result.Next()))
-		require.Equal(t, obj2, (*TestObject)(*result.Next()))
-		require.Nil(t, result.Next())
+		require.Equal(t, obj1, (*TestObject)(result.Next()))
+		require.Equal(t, obj2, (*TestObject)(result.Next()))
+		require.Zero(t, result.Next())
 
 		// Attempt a row scan on the ID with specific ID
 		result, err = txn.Iterator(0, memdb.IDIndexID, obj1.ID)
@@ -247,15 +247,15 @@ func TestTxn_InsertGet_Simple(t *testing.T) {
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
-		require.Equal(t, obj1, (*TestObject)(*result.Next()))
-		require.Nil(t, result.Next())
+		require.Equal(t, obj1, (*TestObject)(result.Next()))
+		require.Zero(t, result.Next())
 
 		// Attempt a row scan secondary index
 		result, err = txn.Iterator(0, indexFoo.ID(), obj1.Foo)
 		require.NoError(t, err)
-		require.Equal(t, obj1, (*TestObject)(*result.Next()))
-		require.Equal(t, obj2, (*TestObject)(*result.Next()))
-		require.Nil(t, result.Next())
+		require.Equal(t, obj1, (*TestObject)(result.Next()))
+		require.Equal(t, obj2, (*TestObject)(result.Next()))
+		require.Zero(t, result.Next())
 	}
 
 	// Check the results within the txn
@@ -284,15 +284,15 @@ func TestTxn_GetIterAndDelete(t *testing.T) {
 	txn := db.Txn(true)
 	oldV, err := txn.Insert(0, unsafe.Pointer(&TestObject{ID: memdb.ID{1}, Foo: key}))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn.Insert(0, unsafe.Pointer(&TestObject{ID: memdb.ID{123}, Foo: key}))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	oldV, err = txn.Insert(0, unsafe.Pointer(&TestObject{ID: memdb.ID{2}, Foo: key}))
 	require.NoError(t, err)
-	require.Nil(t, oldV)
+	require.Zero(t, oldV)
 
 	txn.Commit()
 
@@ -300,14 +300,14 @@ func TestTxn_GetIterAndDelete(t *testing.T) {
 	// Delete something
 	oldV, err = txn.Delete(0, unsafe.Pointer(&TestObject{ID: memdb.ID{123}, Foo: key}))
 	require.NoError(t, err)
-	require.NotNil(t, oldV)
-	require.Equal(t, &TestObject{ID: memdb.ID{123}, Foo: key}, (*TestObject)(*oldV))
+	require.NotZero(t, oldV)
+	require.Equal(t, &TestObject{ID: memdb.ID{123}, Foo: key}, (*TestObject)(oldV))
 
 	iter, err := txn.Iterator(0, indexFoo.ID(), key)
 	require.NoError(t, err)
 
 	for obj := iter.Next(); obj != nil; obj = iter.Next() {
-		_, err := txn.Delete(0, *obj)
+		_, err := txn.Delete(0, obj)
 		require.NoError(t, err)
 	}
 
@@ -386,7 +386,7 @@ func TestTxn_LowerBound(t *testing.T) {
 			// Now range scan and built a result set
 			result := []TestObject{}
 			for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-				result = append(result, *(*TestObject)(*obj))
+				result = append(result, *(*TestObject)(obj))
 			}
 
 			if !reflect.DeepEqual(result, tc.Want) {
@@ -423,7 +423,7 @@ func TestTxn_Back(t *testing.T) {
 	// Now range scan and built a result set
 	result := []TestObject{}
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-		result = append(result, *(*TestObject)(*obj))
+		result = append(result, *(*TestObject)(obj))
 	}
 
 	require.Equal(t, rows[2:], result)

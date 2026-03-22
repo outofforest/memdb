@@ -14,6 +14,8 @@ import (
 	"github.com/outofforest/memdb/tree"
 )
 
+var defaultPointer unsafe.Pointer
+
 // ErrNotFound is returned when the requested item is not found.
 var ErrNotFound = errors.Errorf("not found")
 
@@ -70,7 +72,7 @@ func (txn *Txn) Commit() {
 // When updating an object, the obj provided should be a copy rather
 // than a value updated in-place. Modifying values in-place that are already
 // inserted into MemDB is not supported behavior.
-func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error) {
+func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (unsafe.Pointer, error) {
 	if table >= uint64(len(txn.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
@@ -85,11 +87,7 @@ func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 	idIndexer.FromObject(id, obj)
 
 	idTxn := txn.writableIndex(idSchema.id)
-	previousObj := idTxn.Insert(id, &obj)
-	var existingPtr unsafe.Pointer
-	if previousObj != nil {
-		existingPtr = *previousObj
-	}
+	previousObj := idTxn.Insert(id, obj)
 
 	// On an update, there is an existing object with the given
 	// primary ID. We do the update by deleting the current object
@@ -123,14 +121,14 @@ func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 
 		// Handle the update by deleting from the index first
 		//nolint:nestif
-		if previousObj != nil {
-			if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
+		if previousObj != defaultPointer {
+			if keySize := indexer.SizeFromObject(previousObj); keySize > 0 {
 				if !indexSchema.Unique {
 					keySize += uint64(len(id))
 				}
 
 				existingB := make([]byte, keySize)
-				existingN := indexer.FromObject(existingB, existingPtr)
+				existingN := indexer.FromObject(existingB, previousObj)
 
 				// If we are writing to the same index with the same value,
 				// we can avoid the delete as the insert will overwrite the
@@ -150,7 +148,7 @@ func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 
 		// Update the value of the index
 		if b != nil {
-			indexTxn.Insert(b, &obj)
+			indexTxn.Insert(b, obj)
 		}
 	}
 	return previousObj, nil
@@ -158,7 +156,7 @@ func (txn *Txn) Insert(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 
 // Delete is used to delete a single object from the given table.
 // This object must already exist in the table.
-func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error) {
+func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (unsafe.Pointer, error) {
 	if table >= uint64(len(txn.schema)) {
 		return nil, errors.Errorf("invalid table '%d'", table)
 	}
@@ -174,10 +172,9 @@ func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 
 	idTxn := txn.writableIndex(idSchema.id)
 	previousObj := idTxn.Delete(id)
-	if previousObj == nil {
+	if previousObj == defaultPointer {
 		return nil, ErrNotFound
 	}
-	existingPtr := *previousObj
 
 	// Remove the object from all the indexes.
 	for indexID, indexSchema := range tableSchema {
@@ -186,13 +183,13 @@ func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 		}
 
 		indexer := indexSchema.Indexer
-		if keySize := indexer.SizeFromObject(existingPtr); keySize > 0 {
+		if keySize := indexer.SizeFromObject(previousObj); keySize > 0 {
 			if !indexSchema.Unique {
 				keySize += uint64(len(id))
 			}
 
 			existingB := make([]byte, keySize)
-			existingN := indexer.FromObject(existingB, existingPtr)
+			existingN := indexer.FromObject(existingB, previousObj)
 
 			// Handle non-unique index by computing a unique index.
 			// This is done by appending the primary key which must
@@ -214,7 +211,7 @@ func (txn *Txn) Delete(table uint64, obj unsafe.Pointer) (*unsafe.Pointer, error
 //
 // Note that all values read in the transaction form a consistent snapshot
 // from the time when the transaction was created.
-func (txn *Txn) First(table, index uint64, args ...any) (*unsafe.Pointer, error) {
+func (txn *Txn) First(table, index uint64, args ...any) (unsafe.Pointer, error) {
 	iter, err := txn.getIndexIterator(false, table, index, args...)
 	if err != nil {
 		return nil, err
@@ -269,7 +266,7 @@ func (txn *Txn) Iterator(table, index uint64, args ...any) (ResultIterator, erro
 type ResultIterator interface {
 	// Next returns the next result from the iterator. If there are no more results
 	// nil is returned.
-	Next() *unsafe.Pointer
+	Next() unsafe.Pointer
 }
 
 // radixIterator is used to wrap an underlying iradix iterator.
@@ -279,7 +276,7 @@ type radixIterator struct {
 	iter *iradix.Iterator[unsafe.Pointer]
 }
 
-func (r *radixIterator) Next() *unsafe.Pointer {
+func (r *radixIterator) Next() unsafe.Pointer {
 	return r.iter.Next()
 }
 
