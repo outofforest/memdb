@@ -10,7 +10,7 @@ import (
 // FuncIndex is an index based on values returned from function.
 type FuncIndex[T any] struct {
 	id      uint64
-	indexer *funcIndexer[T]
+	indexer memdb.Indexer
 }
 
 // NewFuncIndex1 creates index from 1 result.
@@ -18,17 +18,17 @@ func NewFuncIndex1[T any, V1 fieldConstraint](
 	f func(ePtr *T) *V1,
 ) *FuncIndex[T] {
 	var _ Index[T] = (*FuncIndex[T])(nil)
-	var _ memdb.Indexer = &funcIndexer[T]{}
+	var _ memdb.Indexer = &funcIndexer1[T, V1]{}
 
-	i := newFuncIndexer[T]([]reflect.Type{
+	sis, args := funcIndexArgs([]reflect.Type{
 		reflect.TypeFor[V1](),
 	})
-	i.f = func(b []byte, o *T) uint64 {
-		return i.sis[0].FromObject(b, unsafe.Pointer(f(o)))
-	}
-
 	index := &FuncIndex[T]{
-		indexer: i,
+		indexer: &funcIndexer1[T, V1]{
+			sis:  sis,
+			args: args,
+			f:    f,
+		},
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -39,22 +39,20 @@ func NewFuncIndex2[T any, V1, V2 fieldConstraint](
 	f func(ePtr *T) (*V1, *V2),
 ) *FuncIndex[T] {
 	var _ Index[T] = (*FuncIndex[T])(nil)
+	var _ memdb.Indexer = &funcIndexer2[T, V1, V2]{}
 
-	i := newFuncIndexer[T]([]reflect.Type{
+	sis, args := funcIndexArgs([]reflect.Type{
 		reflect.TypeFor[V1](),
 		reflect.TypeFor[V2](),
 	})
-	i.f = func(b []byte, o *T) uint64 {
-		v1, v2 := f(o)
-
-		n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
-		n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
-		return n
-	}
-
 	index := &FuncIndex[T]{
-		indexer: i,
+		indexer: &funcIndexer2[T, V1, V2]{
+			sis:  sis,
+			args: args,
+			f:    f,
+		},
 	}
+
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
 }
@@ -64,23 +62,19 @@ func NewFuncIndex3[T any, V1, V2, V3 fieldConstraint](
 	f func(ePtr *T) (*V1, *V2, *V3),
 ) *FuncIndex[T] {
 	var _ Index[T] = (*FuncIndex[T])(nil)
+	var _ memdb.Indexer = &funcIndexer3[T, V1, V2, V3]{}
 
-	i := newFuncIndexer[T]([]reflect.Type{
+	sis, args := funcIndexArgs([]reflect.Type{
 		reflect.TypeFor[V1](),
 		reflect.TypeFor[V2](),
 		reflect.TypeFor[V3](),
 	})
-	i.f = func(b []byte, o *T) uint64 {
-		v1, v2, v3 := f(o)
-
-		n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
-		n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
-		n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
-		return n
-	}
-
 	index := &FuncIndex[T]{
-		indexer: i,
+		indexer: &funcIndexer3[T, V1, V2, V3]{
+			sis:  sis,
+			args: args,
+			f:    f,
+		},
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -91,25 +85,20 @@ func NewFuncIndex4[T any, V1, V2, V3, V4 fieldConstraint](
 	f func(ePtr *T) (*V1, *V2, *V3, *V4),
 ) *FuncIndex[T] {
 	var _ Index[T] = (*FuncIndex[T])(nil)
+	var _ memdb.Indexer = &funcIndexer4[T, V1, V2, V3, V4]{}
 
-	i := newFuncIndexer[T]([]reflect.Type{
+	sis, args := funcIndexArgs([]reflect.Type{
 		reflect.TypeFor[V1](),
 		reflect.TypeFor[V2](),
 		reflect.TypeFor[V3](),
 		reflect.TypeFor[V4](),
 	})
-	i.f = func(b []byte, o *T) uint64 {
-		v1, v2, v3, v4 := f(o)
-
-		n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
-		n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
-		n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
-		n += i.sis[3].FromObject(b[n:], unsafe.Pointer(v4))
-		return n
-	}
-
 	index := &FuncIndex[T]{
-		indexer: i,
+		indexer: &funcIndexer4[T, V1, V2, V3, V4]{
+			sis:  sis,
+			args: args,
+			f:    f,
+		},
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -120,27 +109,21 @@ func NewFuncIndex5[T any, V1, V2, V3, V4, V5 fieldConstraint](
 	f func(ePtr *T) (*V1, *V2, *V3, *V4, *V5),
 ) *FuncIndex[T] {
 	var _ Index[T] = (*FuncIndex[T])(nil)
+	var _ memdb.Indexer = &funcIndexer5[T, V1, V2, V3, V4, V5]{}
 
-	i := newFuncIndexer[T]([]reflect.Type{
+	sis, args := funcIndexArgs([]reflect.Type{
 		reflect.TypeFor[V1](),
 		reflect.TypeFor[V2](),
 		reflect.TypeFor[V3](),
 		reflect.TypeFor[V4](),
 		reflect.TypeFor[V5](),
 	})
-	i.f = func(b []byte, o *T) uint64 {
-		v1, v2, v3, v4, v5 := f(o)
-
-		n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
-		n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
-		n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
-		n += i.sis[3].FromObject(b[n:], unsafe.Pointer(v4))
-		n += i.sis[4].FromObject(b[n:], unsafe.Pointer(v5))
-		return n
-	}
-
 	index := &FuncIndex[T]{
-		indexer: i,
+		indexer: &funcIndexer5[T, V1, V2, V3, V4, V5]{
+			sis:  sis,
+			args: args,
+			f:    f,
+		},
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -151,8 +134,9 @@ func NewFuncIndex6[T any, V1, V2, V3, V4, V5, V6 fieldConstraint](
 	f func(ePtr *T) (*V1, *V2, *V3, *V4, *V5, *V6),
 ) *FuncIndex[T] {
 	var _ Index[T] = (*FuncIndex[T])(nil)
+	var _ memdb.Indexer = &funcIndexer6[T, V1, V2, V3, V4, V5, V6]{}
 
-	i := newFuncIndexer[T]([]reflect.Type{
+	sis, args := funcIndexArgs([]reflect.Type{
 		reflect.TypeFor[V1](),
 		reflect.TypeFor[V2](),
 		reflect.TypeFor[V3](),
@@ -160,20 +144,12 @@ func NewFuncIndex6[T any, V1, V2, V3, V4, V5, V6 fieldConstraint](
 		reflect.TypeFor[V5](),
 		reflect.TypeFor[V6](),
 	})
-	i.f = func(b []byte, o *T) uint64 {
-		v1, v2, v3, v4, v5, v6 := f(o)
-
-		n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
-		n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
-		n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
-		n += i.sis[3].FromObject(b[n:], unsafe.Pointer(v4))
-		n += i.sis[4].FromObject(b[n:], unsafe.Pointer(v5))
-		n += i.sis[5].FromObject(b[n:], unsafe.Pointer(v6))
-		return n
-	}
-
 	index := &FuncIndex[T]{
-		indexer: i,
+		indexer: &funcIndexer6[T, V1, V2, V3, V4, V5, V6]{
+			sis:  sis,
+			args: args,
+			f:    f,
+		},
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -200,43 +176,173 @@ func (i *FuncIndex[T]) dummyTDefiner(t T) {
 	panic("it should never be called")
 }
 
-type funcIndexer[T any] struct {
+type funcIndexer1[T any, V1 fieldConstraint] struct {
 	sis  []memdb.Indexer
 	args []memdb.ArgSerializer
-	f    func(b []byte, o *T) uint64
+	f    func(ePtr *T) *V1
 }
 
-func (i *funcIndexer[T]) Args() []memdb.ArgSerializer {
+func (i *funcIndexer1[T, V1]) Args() []memdb.ArgSerializer {
 	return i.args
 }
 
-func (i *funcIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
-	var size uint64
-	for _, si := range i.sis {
-		s := si.SizeFromObject(o)
-		if s == 0 {
-			return 0
-		}
-		size += s
-	}
-	return size
+func (i *funcIndexer1[T, V1]) SizeFromObject(o unsafe.Pointer) uint64 {
+	return i.sis[0].SizeFromObject(unsafe.Pointer(i.f((*T)(o))))
 }
 
-func (i *funcIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {
-	return i.f(b, (*T)(o))
+func (i *funcIndexer1[T, V1]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	return i.sis[0].FromObject(b, unsafe.Pointer(i.f((*T)(o))))
 }
 
-func newFuncIndexer[T any](types []reflect.Type) *funcIndexer[T] {
-	indexer := &funcIndexer[T]{
-		sis:  make([]memdb.Indexer, 0, len(types)),
-		args: make([]memdb.ArgSerializer, 0, len(types)),
-	}
+type funcIndexer2[T any, V1, V2 fieldConstraint] struct {
+	sis  []memdb.Indexer
+	args []memdb.ArgSerializer
+	f    func(ePtr *T) (*V1, *V2)
+}
+
+func (i *funcIndexer2[T, V1, V2]) Args() []memdb.ArgSerializer {
+	return i.args
+}
+
+func (i *funcIndexer2[T, V1, V2]) SizeFromObject(o unsafe.Pointer) uint64 {
+	v1, v2 := i.f((*T)(o))
+	return i.sis[0].SizeFromObject(unsafe.Pointer(v1)) +
+		i.sis[1].SizeFromObject(unsafe.Pointer(v2))
+}
+
+func (i *funcIndexer2[T, V1, V2]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	v1, v2 := i.f((*T)(o))
+
+	n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
+	n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
+	return n
+}
+
+type funcIndexer3[T any, V1, V2, V3 fieldConstraint] struct {
+	sis  []memdb.Indexer
+	args []memdb.ArgSerializer
+	f    func(ePtr *T) (*V1, *V2, *V3)
+}
+
+func (i *funcIndexer3[T, V1, V2, V3]) Args() []memdb.ArgSerializer {
+	return i.args
+}
+
+func (i *funcIndexer3[T, V1, V2, V3]) SizeFromObject(o unsafe.Pointer) uint64 {
+	v1, v2, v3 := i.f((*T)(o))
+	return i.sis[0].SizeFromObject(unsafe.Pointer(v1)) +
+		i.sis[1].SizeFromObject(unsafe.Pointer(v2)) +
+		i.sis[2].SizeFromObject(unsafe.Pointer(v3))
+}
+
+func (i *funcIndexer3[T, V1, V2, V3]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	v1, v2, v3 := i.f((*T)(o))
+
+	n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
+	n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
+	n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
+	return n
+}
+
+type funcIndexer4[T any, V1, V2, V3, V4 fieldConstraint] struct {
+	sis  []memdb.Indexer
+	args []memdb.ArgSerializer
+	f    func(ePtr *T) (*V1, *V2, *V3, *V4)
+}
+
+func (i *funcIndexer4[T, V1, V2, V3, V4]) Args() []memdb.ArgSerializer {
+	return i.args
+}
+
+func (i *funcIndexer4[T, V1, V2, V3, V4]) SizeFromObject(o unsafe.Pointer) uint64 {
+	v1, v2, v3, v4 := i.f((*T)(o))
+	return i.sis[0].SizeFromObject(unsafe.Pointer(v1)) +
+		i.sis[1].SizeFromObject(unsafe.Pointer(v2)) +
+		i.sis[2].SizeFromObject(unsafe.Pointer(v3)) +
+		i.sis[3].SizeFromObject(unsafe.Pointer(v4))
+}
+
+func (i *funcIndexer4[T, V1, V2, V3, V4]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	v1, v2, v3, v4 := i.f((*T)(o))
+
+	n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
+	n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
+	n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
+	n += i.sis[3].FromObject(b[n:], unsafe.Pointer(v4))
+	return n
+}
+
+type funcIndexer5[T any, V1, V2, V3, V4, V5 fieldConstraint] struct {
+	sis  []memdb.Indexer
+	args []memdb.ArgSerializer
+	f    func(ePtr *T) (*V1, *V2, *V3, *V4, *V5)
+}
+
+func (i *funcIndexer5[T, V1, V2, V3, V4, V5]) Args() []memdb.ArgSerializer {
+	return i.args
+}
+
+func (i *funcIndexer5[T, V1, V2, V3, V4, V5]) SizeFromObject(o unsafe.Pointer) uint64 {
+	v1, v2, v3, v4, v5 := i.f((*T)(o))
+	return i.sis[0].SizeFromObject(unsafe.Pointer(v1)) +
+		i.sis[1].SizeFromObject(unsafe.Pointer(v2)) +
+		i.sis[2].SizeFromObject(unsafe.Pointer(v3)) +
+		i.sis[3].SizeFromObject(unsafe.Pointer(v4)) +
+		i.sis[4].SizeFromObject(unsafe.Pointer(v5))
+}
+
+func (i *funcIndexer5[T, V1, V2, V3, V4, V5]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	v1, v2, v3, v4, v5 := i.f((*T)(o))
+
+	n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
+	n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
+	n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
+	n += i.sis[3].FromObject(b[n:], unsafe.Pointer(v4))
+	n += i.sis[4].FromObject(b[n:], unsafe.Pointer(v5))
+	return n
+}
+
+type funcIndexer6[T any, V1, V2, V3, V4, V5, V6 fieldConstraint] struct {
+	sis  []memdb.Indexer
+	args []memdb.ArgSerializer
+	f    func(ePtr *T) (*V1, *V2, *V3, *V4, *V5, *V6)
+}
+
+func (i *funcIndexer6[T, V1, V2, V3, V4, V5, V6]) Args() []memdb.ArgSerializer {
+	return i.args
+}
+
+func (i *funcIndexer6[T, V1, V2, V3, V4, V5, V6]) SizeFromObject(o unsafe.Pointer) uint64 {
+	v1, v2, v3, v4, v5, v6 := i.f((*T)(o))
+	return i.sis[0].SizeFromObject(unsafe.Pointer(v1)) +
+		i.sis[1].SizeFromObject(unsafe.Pointer(v2)) +
+		i.sis[2].SizeFromObject(unsafe.Pointer(v3)) +
+		i.sis[3].SizeFromObject(unsafe.Pointer(v4)) +
+		i.sis[4].SizeFromObject(unsafe.Pointer(v5)) +
+		i.sis[5].SizeFromObject(unsafe.Pointer(v6))
+}
+
+func (i *funcIndexer6[T, V1, V2, V3, V4, V5, V6]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+	v1, v2, v3, v4, v5, v6 := i.f((*T)(o))
+
+	n := i.sis[0].FromObject(b, unsafe.Pointer(v1))
+	n += i.sis[1].FromObject(b[n:], unsafe.Pointer(v2))
+	n += i.sis[2].FromObject(b[n:], unsafe.Pointer(v3))
+	n += i.sis[3].FromObject(b[n:], unsafe.Pointer(v4))
+	n += i.sis[4].FromObject(b[n:], unsafe.Pointer(v5))
+	n += i.sis[5].FromObject(b[n:], unsafe.Pointer(v6))
+	return n
+}
+
+func funcIndexArgs(types []reflect.Type) ([]memdb.Indexer, []memdb.ArgSerializer) {
+	sis := make([]memdb.Indexer, 0, len(types))
+	args := make([]memdb.ArgSerializer, 0, len(types))
 
 	for _, t := range types {
 		subIndexer := indexerForType(t, 0)
-		indexer.sis = append(indexer.sis, subIndexer)
-		indexer.args = append(indexer.args, subIndexer.Args()...)
+		sis = append(sis, subIndexer)
+		args = append(args, subIndexer.Args()...)
 	}
 
-	return indexer
+	return sis, args
 }
