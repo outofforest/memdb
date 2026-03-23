@@ -22,9 +22,10 @@ func NewIfIndex[T any](subIndex Index[T], f func(o *T) bool) *IfIndex[T] {
 	schema := subIndex.Schema()
 	index := &IfIndex[T]{
 		subIndex: subIndex,
-		indexer: ifIndexer[T]{
+		indexer: &ifIndexer[T]{
 			subIndexer: schema.Indexer,
 			f:          f,
+			args:       schema.Indexer.Args(),
 		},
 		unique: schema.Unique,
 	}
@@ -54,25 +55,26 @@ func (i *IfIndex[T]) dummyTDefiner(t T) {
 	panic("it should never be called")
 }
 
-var _ memdb.Indexer = ifIndexer[int]{}
+var _ memdb.Indexer = &ifIndexer[int]{}
 
 type ifIndexer[T any] struct {
 	subIndexer memdb.Indexer
 	f          func(o *T) bool
+	args       []memdb.ArgSerializer
 }
 
-func (i ifIndexer[T]) Args() []memdb.ArgSerializer {
-	return i.subIndexer.Args()
+func (i *ifIndexer[T]) Args() []memdb.ArgSerializer {
+	return i.args
 }
 
-func (i ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
+func (i *ifIndexer[T]) SizeFromObject(o unsafe.Pointer) uint64 {
 	if !i.f((*T)(o)) {
 		return 0
 	}
 	return i.subIndexer.SizeFromObject(o)
 }
 
-func (i ifIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {
+func (i *ifIndexer[T]) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	if !i.f((*T)(o)) {
 		return 0
 	}

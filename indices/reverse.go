@@ -20,12 +20,14 @@ func NewReverseIndex[T any](subIndex Index[T]) *ReverseIndex[T] {
 	var _ Index[T] = (*ReverseIndex[T])(nil)
 
 	schema := subIndex.Schema()
+	indexer := &reverseIndexer{
+		subIndexer: schema.Indexer.(memdb.ArgSerializerIndexer),
+	}
+	indexer.args = []memdb.ArgSerializer{indexer}
 	index := &ReverseIndex[T]{
 		subIndex: subIndex,
-		indexer: reverseIndexer{
-			subIndexer: schema.Indexer.(memdb.ArgSerializerIndexer),
-		},
-		unique: schema.Unique,
+		indexer:  indexer,
+		unique:   schema.Unique,
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -53,32 +55,33 @@ func (i *ReverseIndex[T]) dummyTDefiner(t T) {
 	panic("it should never be called")
 }
 
-var _ memdb.Indexer = reverseIndexer{}
-var _ memdb.ArgSerializer = reverseIndexer{}
+var _ memdb.Indexer = &reverseIndexer{}
+var _ memdb.ArgSerializer = &reverseIndexer{}
 
 type reverseIndexer struct {
 	subIndexer memdb.ArgSerializerIndexer
+	args       []memdb.ArgSerializer
 }
 
-func (i reverseIndexer) Args() []memdb.ArgSerializer {
-	return []memdb.ArgSerializer{i}
+func (i *reverseIndexer) Args() []memdb.ArgSerializer {
+	return i.args
 }
 
-func (i reverseIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
+func (i *reverseIndexer) SizeFromObject(o unsafe.Pointer) uint64 {
 	return i.subIndexer.SizeFromObject(o)
 }
 
-func (i reverseIndexer) SizeFromArg(arg any) uint64 {
+func (i *reverseIndexer) SizeFromArg(arg any) uint64 {
 	return i.subIndexer.SizeFromArg(arg)
 }
 
-func (i reverseIndexer) FromArg(b []byte, arg any) uint64 {
+func (i *reverseIndexer) FromArg(b []byte, arg any) uint64 {
 	n := i.subIndexer.FromArg(b, arg)
 	negate(b[:n])
 	return n
 }
 
-func (i reverseIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
+func (i *reverseIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	n := i.subIndexer.FromObject(b, o)
 	negate(b[:n])
 	return n
