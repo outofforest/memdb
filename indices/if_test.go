@@ -22,6 +22,18 @@ func ifFunc[T comparable](values ...T) func(o *T) bool {
 	}
 }
 
+func TestIfIndexType(t *testing.T) {
+	t.Parallel()
+
+	requireT := require.New(t)
+	var v o
+
+	subIndex := NewFieldIndex(&v, &v.Value1)
+	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1}, o{Value1: 2}))
+
+	requireT.Equal(reflect.TypeFor[o](), index.Type())
+}
+
 func TestIfIndexer(t *testing.T) {
 	t.Parallel()
 

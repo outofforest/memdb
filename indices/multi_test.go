@@ -1,6 +1,7 @@
 package indices
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,6 +11,20 @@ const (
 	xyz = "XYZ"
 	ijk = "IJK"
 )
+
+func TestMultiIndexType(t *testing.T) {
+	t.Parallel()
+
+	requireT := require.New(t)
+	var v o
+
+	index1 := NewFieldIndex(&v, &v.Value1)
+	index2 := NewFieldIndex(&v, &v.Value4)
+
+	index := NewMultiIndex(index1, index2)
+
+	requireT.Equal(reflect.TypeFor[o](), index.Type())
+}
 
 func TestMultiIndexer(t *testing.T) {
 	t.Parallel()
