@@ -34,7 +34,7 @@ func TestReverseIndexer(t *testing.T) {
 	requireT.NotEqual(subIndex.ID(), index.ID())
 	requireT.False(index.Schema().Unique)
 
-	indexer := index.Schema().Indexer.(reverseIndexer)
+	indexer := index.Schema().Indexer.(*reverseIndexer)
 	requireT.Len(indexer.Args(), 1)
 
 	v.Value1 = 1
@@ -59,7 +59,7 @@ func TestReverseIndexerUnique(t *testing.T) {
 	requireT.NotZero(index.ID())
 	requireT.True(index.Schema().Unique)
 
-	indexer := index.Schema().Indexer.(reverseIndexer)
+	indexer := index.Schema().Indexer.(*reverseIndexer)
 	requireT.Len(indexer.Args(), 1)
 
 	v.Value1 = 1

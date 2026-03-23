@@ -106,66 +106,46 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i := NewFieldIndex(v, &v.Value1)
 	requireT.NotZero(i.ID())
-	requireT.Equal(uint64Indexer{
-		offset: 0x10,
-	}, i.Schema().Indexer)
+	requireT.EqualValues(0x10, i.Schema().Indexer.(*uint64Indexer).offset)
 
 	requireT.Panics(func() {
 		NewFieldIndex(v, &v.Value2)
 	})
 
 	i = NewFieldIndex(v, &v.Value2.Value1)
-	requireT.Equal(uint64Indexer{
-		offset: 0x18,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x18), i.Schema().Indexer.(*uint64Indexer).offset)
 
 	requireT.Panics(func() {
 		NewFieldIndex(v, &v.Value2.Value2)
 	})
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value1)
-	requireT.Equal(stringIndexer{
-		offset: 0x80,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x80), i.Schema().Indexer.(*stringIndexer).offset)
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value2)
-	requireT.Equal(int16Indexer{
-		offset: 0x90,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x90), i.Schema().Indexer.(*int16Indexer).offset)
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value3)
-	requireT.Equal(uint8Indexer{
-		offset: 0x92,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x92), i.Schema().Indexer.(*uint8Indexer).offset)
 
 	i = NewFieldIndex(v, &v.Value2.Value3)
-	requireT.Equal(stringIndexer{
-		offset: 0x98,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x98), i.Schema().Indexer.(*stringIndexer).offset)
 
 	requireT.Panics(func() {
 		NewFieldIndex(v, &v.Value3)
 	})
 
 	i = NewFieldIndex(v, &v.Value3.Value1)
-	requireT.Equal(stringIndexer{
-		offset: 0x108,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x108), i.Schema().Indexer.(*stringIndexer).offset)
 
 	i = NewFieldIndex(v, &v.Value3.Value2)
-	requireT.Equal(int16Indexer{
-		offset: 0x118,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x118), i.Schema().Indexer.(*int16Indexer).offset)
 
 	i = NewFieldIndex(v, &v.Value3.Value3)
-	requireT.Equal(uint8Indexer{
-		offset: 0x11a,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x11a), i.Schema().Indexer.(*uint8Indexer).offset)
 
 	i = NewFieldIndex(v, &v.Value4)
-	requireT.Equal(stringIndexer{
-		offset: 0x120,
-	}, i.Schema().Indexer)
+	requireT.Equal(uintptr(0x120), i.Schema().Indexer.(*stringIndexer).offset)
 }
 
 func TestIndexerOffset0(t *testing.T) {
@@ -175,7 +155,7 @@ func TestIndexerOffset0(t *testing.T) {
 	v := &subO2{}
 
 	index := NewFieldIndex(v, &v.ValueBool)
-	indexer := index.Schema().Indexer.(boolIndexer)
+	indexer := index.Schema().Indexer.(*boolIndexer)
 
 	v.ValueBool = false
 	verify(requireT, indexer, []byte{0x00}, v, v.ValueBool)
@@ -192,7 +172,7 @@ func TestBoolIndexer(t *testing.T) {
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueBool)
 	requireT.False(index.Schema().Unique)
-	indexer := index.Schema().Indexer.(boolIndexer)
+	indexer := index.Schema().Indexer.(*boolIndexer)
 
 	v.Value2.Value2.ValueBool = false
 	verify(requireT, indexer, []byte{0x00}, v, v.Value2.Value2.ValueBool)
@@ -208,7 +188,7 @@ func TestStringIndexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueString)
-	indexer := index.Schema().Indexer.(stringIndexer)
+	indexer := index.Schema().Indexer.(*stringIndexer)
 
 	v.Value2.Value2.ValueString = ""
 	verify(requireT, indexer, []byte{0x00}, v, v.Value2.Value2.ValueString)
@@ -224,7 +204,7 @@ func TestTimeIndexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueTime)
-	indexer := index.Schema().Indexer.(timeIndexer)
+	indexer := index.Schema().Indexer.(*timeIndexer)
 
 	v.Value2.Value2.ValueTime = time.Time{}
 	verify(requireT, indexer, []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
@@ -246,7 +226,7 @@ func TestInt8Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueInt8)
-	indexer := index.Schema().Indexer.(int8Indexer)
+	indexer := index.Schema().Indexer.(*int8Indexer)
 
 	v.Value2.Value2.ValueInt8 = 0
 	verify(requireT, indexer, []byte{0x80}, v, v.Value2.Value2.ValueInt8)
@@ -265,7 +245,7 @@ func TestInt16Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueInt16)
-	indexer := index.Schema().Indexer.(int16Indexer)
+	indexer := index.Schema().Indexer.(*int16Indexer)
 
 	v.Value2.Value2.ValueInt16 = 0
 	verify(requireT, indexer, []byte{0x80, 0x00}, v, v.Value2.Value2.ValueInt16)
@@ -284,7 +264,7 @@ func TestInt32Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueInt32)
-	indexer := index.Schema().Indexer.(int32Indexer)
+	indexer := index.Schema().Indexer.(*int32Indexer)
 
 	v.Value2.Value2.ValueInt32 = 0
 	verify(requireT, indexer, []byte{0x80, 0x00, 0x00, 0x00}, v, v.Value2.Value2.ValueInt32)
@@ -303,7 +283,7 @@ func TestInt64Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueInt64)
-	indexer := index.Schema().Indexer.(int64Indexer)
+	indexer := index.Schema().Indexer.(*int64Indexer)
 
 	v.Value2.Value2.ValueInt64 = 0
 	verify(requireT, indexer, []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, v, v.Value2.Value2.ValueInt64)
@@ -322,7 +302,7 @@ func TestUInt8Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueUint8)
-	indexer := index.Schema().Indexer.(uint8Indexer)
+	indexer := index.Schema().Indexer.(*uint8Indexer)
 
 	v.Value2.Value2.ValueUint8 = 0
 	verify(requireT, indexer, []byte{0x00}, v, v.Value2.Value2.ValueUint8)
@@ -336,7 +316,7 @@ func TestUInt16Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueUint16)
-	indexer := index.Schema().Indexer.(uint16Indexer)
+	indexer := index.Schema().Indexer.(*uint16Indexer)
 
 	v.Value2.Value2.ValueUint16 = 0
 	verify(requireT, indexer, []byte{0x00, 0x00}, v, v.Value2.Value2.ValueUint16)
@@ -350,7 +330,7 @@ func TestUInt32Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueUint32)
-	indexer := index.Schema().Indexer.(uint32Indexer)
+	indexer := index.Schema().Indexer.(*uint32Indexer)
 
 	v.Value2.Value2.ValueUint32 = 0
 	verify(requireT, indexer, []byte{0x00, 0x00, 0x00, 0x00}, v, v.Value2.Value2.ValueUint32)
@@ -364,7 +344,7 @@ func TestUInt64Indexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueUint64)
-	indexer := index.Schema().Indexer.(uint64Indexer)
+	indexer := index.Schema().Indexer.(*uint64Indexer)
 
 	v.Value2.Value2.ValueUint64 = 0
 	verify(requireT, indexer, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, v, v.Value2.Value2.ValueUint64)
@@ -378,7 +358,7 @@ func TestIDIndexer(t *testing.T) {
 	v := &o{}
 
 	index := NewFieldIndex(v, &v.Value2.Value2.ValueID)
-	indexer := index.Schema().Indexer.(idIndexer)
+	indexer := index.Schema().Indexer.(*idIndexer)
 
 	v.Value2.Value2.ValueID = memdb.ID{}
 	verify(requireT, indexer, []byte{

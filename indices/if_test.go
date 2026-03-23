@@ -47,7 +47,7 @@ func TestIfIndexer(t *testing.T) {
 	requireT.NotEqual(subIndex.ID(), index.ID())
 	requireT.False(index.Schema().Unique)
 
-	indexer := index.Schema().Indexer.(ifIndexer[o])
+	indexer := index.Schema().Indexer.(*ifIndexer[o])
 	requireT.Len(indexer.Args(), 1)
 
 	v.Value1 = 1
@@ -74,7 +74,7 @@ func TestIfIndexerMulti(t *testing.T) {
 	index := NewIfIndex(subIndex, ifFunc[o](o{Value1: 1, Value4: abc}, o{Value1: 1, Value4: def}))
 	requireT.NotZero(index.ID())
 
-	indexer := index.Schema().Indexer.(ifIndexer[o])
+	indexer := index.Schema().Indexer.(*ifIndexer[o])
 	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
@@ -106,7 +106,7 @@ func TestIfIndexerUnique(t *testing.T) {
 	requireT.NotZero(index.ID())
 	requireT.True(index.Schema().Unique)
 
-	indexer := index.Schema().Indexer.(ifIndexer[o])
+	indexer := index.Schema().Indexer.(*ifIndexer[o])
 	requireT.Len(indexer.Args(), 2)
 
 	v.Value1 = 1
