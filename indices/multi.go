@@ -12,7 +12,7 @@ import (
 // MultiIndex compiles many indices into a single one.
 type MultiIndex[T any] struct {
 	id      uint64
-	indexer memdb.Indexer
+	indexer *multiIndexer[T]
 	unique  bool
 }
 
@@ -37,7 +37,6 @@ func NewMultiIndex[T any](subIndices ...Index[T]) *MultiIndex[T] {
 
 	index := &MultiIndex[T]{
 		indexer: &multiIndexer[T]{
-			subIndices:  subIndices,
 			subIndexers: subIndexers,
 			args:        args,
 		},
@@ -70,7 +69,6 @@ func (i *MultiIndex[T]) dummyTDefiner(t T) {
 }
 
 type multiIndexer[T any] struct {
-	subIndices  []Index[T]
 	subIndexers []memdb.Indexer
 	args        []memdb.ArgSerializer
 }

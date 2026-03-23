@@ -11,7 +11,7 @@ import (
 type IfIndex[T any] struct {
 	id       uint64
 	subIndex Index[T]
-	indexer  memdb.Indexer
+	indexer  *ifIndexer[T]
 	unique   bool
 }
 

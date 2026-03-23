@@ -37,16 +37,12 @@ func NewFieldIndex[T any, F fieldConstraint](ePtr *T, fieldPtr *F) *FieldIndex[T
 
 	offset := fieldStart - eStart
 	foundFieldType := findField(eType, offset)
-	indexer, err := indexerForType(fieldType, offset)
-	if err != nil {
-		panic(err)
-	}
 	if foundFieldType != fieldType {
 		panic(errors.Errorf("unexpected field type %s, expected %s", foundFieldType, fieldType))
 	}
 
 	index := &FieldIndex[T]{
-		indexer: indexer,
+		indexer: indexerForType(fieldType, offset),
 	}
 	index.id = uint64(uintptr(unsafe.Pointer(index)))
 	return index
@@ -512,60 +508,60 @@ func (i *idIndexer) FromObject(b []byte, o unsafe.Pointer) uint64 {
 	return memdb.IDLength
 }
 
-func indexerForType(t reflect.Type, offset uintptr) (memdb.Indexer, error) {
+func indexerForType(t reflect.Type, offset uintptr) memdb.Indexer {
 	if t.ConvertibleTo(idType) {
 		i := &idIndexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	}
 	if t.ConvertibleTo(timeType) {
 		i := &timeIndexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	}
 	switch t.Kind() {
 	case reflect.Bool:
 		i := &boolIndexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.String:
 		i := &stringIndexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Int8:
 		i := &int8Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Int16:
 		i := &int16Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Int32:
 		i := &int32Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Int64:
 		i := &int64Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Uint8:
 		i := &uint8Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Uint16:
 		i := &uint16Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Uint32:
 		i := &uint32Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	case reflect.Uint64:
 		i := &uint64Indexer{offset: offset}
 		i.args = []memdb.ArgSerializer{i}
-		return i, nil
+		return i
 	default:
-		return nil, errors.Errorf("unsupported type: %s", t)
+		panic(errors.Errorf("unsupported type: %s", t))
 	}
 }
 
