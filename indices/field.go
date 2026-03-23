@@ -18,7 +18,7 @@ type FieldIndex[T any] struct {
 }
 
 // NewFieldIndex defines new field index.
-func NewFieldIndex[T any](ePtr *T, fieldPtr any) *FieldIndex[T] {
+func NewFieldIndex[T any, F fieldConstraint](ePtr *T, fieldPtr *F) *FieldIndex[T] {
 	var _ Index[T] = (*FieldIndex[T])(nil)
 
 	eType := reflect.TypeFor[T]()
@@ -26,13 +26,7 @@ func NewFieldIndex[T any](ePtr *T, fieldPtr any) *FieldIndex[T] {
 		panic(errors.New("*ePtr is not a struct"))
 	}
 
-	fieldPtrType := reflect.TypeOf(fieldPtr)
-	if fieldPtrType.Kind() != reflect.Ptr {
-		panic(errors.New("fieldPtr is not a pointer"))
-	}
-	if fieldPtrType.Elem().Kind() == reflect.Ptr {
-		panic(errors.New("field is a pointer"))
-	}
+	fieldType := reflect.TypeFor[F]()
 
 	eStart := reflect.ValueOf(ePtr).Pointer()
 	eSize := eType.Size()
@@ -42,13 +36,13 @@ func NewFieldIndex[T any](ePtr *T, fieldPtr any) *FieldIndex[T] {
 	}
 
 	offset := fieldStart - eStart
-	fieldType := findField(eType, offset)
+	foundFieldType := findField(eType, offset)
 	indexer, err := indexerForType(fieldType, offset)
 	if err != nil {
 		panic(err)
 	}
-	if fieldType != fieldPtrType.Elem() {
-		panic(errors.Errorf("unexpected field type %s, expected %s", fieldType, fieldPtrType.Elem()))
+	if foundFieldType != fieldType {
+		panic(errors.Errorf("unexpected field type %s, expected %s", foundFieldType, fieldType))
 	}
 
 	index := &FieldIndex[T]{
@@ -573,4 +567,9 @@ func indexerForType(t reflect.Type, offset uintptr) (memdb.Indexer, error) {
 	default:
 		return nil, errors.Errorf("unsupported type: %s", t)
 	}
+}
+
+type fieldConstraint interface {
+	//nolint:lll
+	~[memdb.IDLength]byte | time.Time | ~bool | ~string | ~int8 | ~int16 | ~int32 | ~int64 | ~uint8 | ~uint16 | ~uint32 | ~uint64
 }

@@ -84,40 +84,12 @@ func TestFieldIndexOffset(t *testing.T) {
 		Value4: "JKM",
 	}
 
-	var v2 o
-
-	requireT.Panics(func() {
-		NewFieldIndex(v, &v2)
-	})
-
-	v3 := &v2
-	requireT.Panics(func() {
-		NewFieldIndex(v, &v3)
-	})
-
-	requireT.Panics(func() {
-		NewFieldIndex(v, &v)
-	})
-
-	f := &v.Value1
-	requireT.Panics(func() {
-		NewFieldIndex(v, &f)
-	})
-
 	i := NewFieldIndex(v, &v.Value1)
 	requireT.NotZero(i.ID())
 	requireT.EqualValues(0x10, i.Schema().Indexer.(*uint64Indexer).offset)
 
-	requireT.Panics(func() {
-		NewFieldIndex(v, &v.Value2)
-	})
-
 	i = NewFieldIndex(v, &v.Value2.Value1)
 	requireT.Equal(uintptr(0x18), i.Schema().Indexer.(*uint64Indexer).offset)
-
-	requireT.Panics(func() {
-		NewFieldIndex(v, &v.Value2.Value2)
-	})
 
 	i = NewFieldIndex(v, &v.Value2.Value2.Value1)
 	requireT.Equal(uintptr(0x80), i.Schema().Indexer.(*stringIndexer).offset)
@@ -130,10 +102,6 @@ func TestFieldIndexOffset(t *testing.T) {
 
 	i = NewFieldIndex(v, &v.Value2.Value3)
 	requireT.Equal(uintptr(0x98), i.Schema().Indexer.(*stringIndexer).offset)
-
-	requireT.Panics(func() {
-		NewFieldIndex(v, &v.Value3)
-	})
 
 	i = NewFieldIndex(v, &v.Value3.Value1)
 	requireT.Equal(uintptr(0x108), i.Schema().Indexer.(*stringIndexer).offset)
