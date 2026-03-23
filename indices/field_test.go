@@ -50,6 +50,17 @@ type subO2 struct {
 	Value3      uint8
 }
 
+func TestFieldIndexType(t *testing.T) {
+	t.Parallel()
+
+	requireT := require.New(t)
+	var v o
+
+	i := NewFieldIndex(&v, &v.Value1)
+
+	requireT.Equal(reflect.TypeFor[o](), i.Type())
+}
+
 func TestFieldIndexOffset(t *testing.T) {
 	t.Parallel()
 

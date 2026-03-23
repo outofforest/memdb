@@ -3,10 +3,23 @@ package indices
 import (
 	"crypto/rand"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestReverseIndexType(t *testing.T) {
+	t.Parallel()
+
+	requireT := require.New(t)
+	var v o
+
+	subIndex := NewFieldIndex(&v, &v.Value1)
+	index := NewReverseIndex(subIndex)
+
+	requireT.Equal(reflect.TypeFor[o](), index.Type())
+}
 
 func TestReverseIndexer(t *testing.T) {
 	t.Parallel()
