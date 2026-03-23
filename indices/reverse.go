@@ -11,7 +11,7 @@ import (
 type ReverseIndex[T any] struct {
 	id       uint64
 	subIndex Index[T]
-	indexer  memdb.Indexer
+	indexer  *reverseIndexer
 	unique   bool
 }
 
