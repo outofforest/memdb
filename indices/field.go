@@ -88,8 +88,7 @@ func findField(t reflect.Type, offset uintptr) reflect.Type {
 }
 
 func valueByOffset[T any](o unsafe.Pointer, offset uintptr) T {
-	return *(*T)(unsafe.Pointer(uintptr(o) + offset))
-	// return *(*T)(unsafe.Add(o, offset))
+	return *(*T)(unsafe.Add(o, offset))
 }
 
 func boolToBytes(v bool, b []byte) {
