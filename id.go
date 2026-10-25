@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"reflect"
 	"unsafe"
-
-	"github.com/samber/lo"
 )
 
 const (
@@ -26,7 +24,9 @@ type idConstraint interface {
 // NewID generates new ID.
 func NewID[T idConstraint]() T {
 	var id [IDLength]byte
-	lo.Must(rand.Read(id[:]))
+	if _, err := rand.Read(id[:]); err != nil {
+		panic(err)
+	}
 	return id
 }
 

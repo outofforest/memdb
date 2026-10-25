@@ -339,10 +339,6 @@ type TestObject struct {
 	Bool   bool
 }
 
-func String(s string) *string {
-	return &s
-}
-
 func testObj() *TestObject {
 	obj := &TestObject{
 		ID:     memdb.ID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},

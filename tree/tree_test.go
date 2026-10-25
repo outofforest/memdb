@@ -3,7 +3,6 @@ package tree
 import (
 	"testing"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,9 +18,9 @@ func TestTree(t *testing.T) {
 	requireT.Nil(v)
 	requireT.False(dirty)
 
-	tree.Set(5, lo.ToPtr(3))
-	tree.Set(0, lo.ToPtr(11))
-	tree.Set(2, lo.ToPtr(4))
+	tree.Set(5, new(3))
+	tree.Set(0, new(11))
+	tree.Set(2, new(4))
 
 	v, dirty = tree.Get(10)
 	requireT.Nil(v)
@@ -51,9 +50,9 @@ func TestTree(t *testing.T) {
 	requireT.Equal(4, *v)
 	requireT.True(dirty)
 
-	tree.Set(5, lo.ToPtr(30))
-	tree.Set(0, lo.ToPtr(110))
-	tree.Set(2, lo.ToPtr(40))
+	tree.Set(5, new(30))
+	tree.Set(0, new(110))
+	tree.Set(2, new(40))
 
 	v, dirty = tree.Get(10)
 	requireT.Nil(v)
@@ -99,7 +98,7 @@ func TestTreeBig(t *testing.T) {
 	tree := New[*uint64]()
 
 	for i := range uint64(10_000) {
-		tree.Set(i, lo.ToPtr(i+100))
+		tree.Set(i, new(i+100))
 	}
 	for i := range uint64(10_000) {
 		v, dirty := tree.Get(i)
@@ -109,7 +108,7 @@ func TestTreeBig(t *testing.T) {
 	}
 
 	for i := range uint64(20_000) {
-		tree.Set(i, lo.ToPtr(i+200))
+		tree.Set(i, new(i+200))
 	}
 	for i := range uint64(20_000) {
 		v, dirty := tree.Get(i)
@@ -123,22 +122,22 @@ func TestNext(t *testing.T) {
 	requireT := require.New(t)
 
 	tree1 := New[*int]()
-	tree1.Set(1, lo.ToPtr(10))
-	tree1.Set(2, lo.ToPtr(20))
-	tree1.Set(3, lo.ToPtr(30))
-	tree1.Set(4, lo.ToPtr(40))
-	tree1.Set(5, lo.ToPtr(50))
+	tree1.Set(1, new(10))
+	tree1.Set(2, new(20))
+	tree1.Set(3, new(30))
+	tree1.Set(4, new(40))
+	tree1.Set(5, new(50))
 
 	tree2 := tree1.Next()
 
-	tree1.Set(3, lo.ToPtr(31))
-	tree2.Set(4, lo.ToPtr(42))
-	tree1.Set(5, lo.ToPtr(51))
-	tree2.Set(5, lo.ToPtr(52))
-	tree1.Set(6, lo.ToPtr(61))
-	tree2.Set(6, lo.ToPtr(62))
-	tree1.Set(7, lo.ToPtr(71))
-	tree2.Set(8, lo.ToPtr(82))
+	tree1.Set(3, new(31))
+	tree2.Set(4, new(42))
+	tree1.Set(5, new(51))
+	tree2.Set(5, new(52))
+	tree1.Set(6, new(61))
+	tree2.Set(6, new(62))
+	tree1.Set(7, new(71))
+	tree2.Set(8, new(82))
 
 	v, dirty := tree1.Get(1)
 	requireT.NotNil(v)

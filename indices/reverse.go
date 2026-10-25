@@ -94,8 +94,12 @@ func negate(b []byte) {
 
 	l := len(b)
 	p := unsafe.Pointer(&b[0])
-	for ; l >= 8; l, p = l-8, unsafe.Add(p, 8) {
+	for ; l >= 8; l -= 8 {
 		*(*uint64)(p) ^= 0xFFFFFFFFFFFFFFFF
+		if l == 8 {
+			return
+		}
+		p = unsafe.Add(p, 8)
 	}
 
 	if l >= 4 {
