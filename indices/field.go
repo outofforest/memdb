@@ -72,8 +72,7 @@ func (i *FieldIndex[T]) dummyTDefiner(t T) {
 func findField(t reflect.Type, offset uintptr) reflect.Type {
 	var field reflect.StructField
 	for {
-		for i := range t.NumField() {
-			f := t.Field(i)
+		for f := range t.Fields() {
 			if f.Offset > offset {
 				break
 			}
@@ -90,6 +89,7 @@ func findField(t reflect.Type, offset uintptr) reflect.Type {
 
 func valueByOffset[T any](o unsafe.Pointer, offset uintptr) T {
 	return *(*T)(unsafe.Pointer(uintptr(o) + offset))
+	// return *(*T)(unsafe.Add(o, offset))
 }
 
 func boolToBytes(v bool, b []byte) {

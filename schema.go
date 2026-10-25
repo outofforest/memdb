@@ -42,9 +42,9 @@ func (s dbSchema) Validate() error {
 			return errors.Errorf("id index of table %d must be unique", tableID)
 		}
 
-		for name, index := range indexes {
+		for id, index := range indexes {
 			if err := index.Validate(); err != nil {
-				return errors.Errorf("index %q: %s", name, err)
+				return errors.Errorf("index %d: %s", id, err)
 			}
 		}
 	}

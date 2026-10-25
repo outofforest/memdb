@@ -5,7 +5,6 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +14,7 @@ func TestFuncIndexType(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex1(func(e *o) *uint8 {
-		return lo.ToPtr[uint8](0)
+		return new(uint8(0))
 	})
 
 	requireT.Equal(reflect.TypeFor[o](), i.Type())
@@ -27,7 +26,7 @@ func TestFuncIndex1(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex1(func(e *o) *uint8 {
-		return lo.ToPtr[uint8](0xff)
+		return new(uint8(0xff))
 	})
 
 	b := make([]byte, 2)
@@ -47,8 +46,8 @@ func TestFuncIndex2(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex2(func(e *o) (*uint8, *uint16) {
-		return lo.ToPtr[uint8](0xff),
-			lo.ToPtr[uint16](0xeeee)
+		return new(uint8(0xff)),
+			new(uint16(0xeeee))
 	})
 
 	b := make([]byte, 4)
@@ -69,9 +68,9 @@ func TestFuncIndex3(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex3(func(e *o) (*uint8, *uint16, *uint32) {
-		return lo.ToPtr[uint8](0xff),
-			lo.ToPtr[uint16](0xeeee),
-			lo.ToPtr[uint32](0xdddddddd)
+		return new(uint8(0xff)),
+			new(uint16(0xeeee)),
+			new(uint32(0xdddddddd))
 	})
 
 	b := make([]byte, 8)
@@ -93,10 +92,10 @@ func TestFuncIndex4(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex4(func(e *o) (*uint8, *uint16, *uint32, *uint64) {
-		return lo.ToPtr[uint8](0xff),
-			lo.ToPtr[uint16](0xeeee),
-			lo.ToPtr[uint32](0xdddddddd),
-			lo.ToPtr[uint64](0xcccccccccccccccc)
+		return new(uint8(0xff)),
+			new(uint16(0xeeee)),
+			new(uint32(0xdddddddd)),
+			new(uint64(0xcccccccccccccccc))
 	})
 
 	b := make([]byte, 16)
@@ -120,11 +119,11 @@ func TestFuncIndex5(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex5(func(e *o) (*uint8, *uint16, *uint32, *uint64, *uint8) {
-		return lo.ToPtr[uint8](0xff),
-			lo.ToPtr[uint16](0xeeee),
-			lo.ToPtr[uint32](0xdddddddd),
-			lo.ToPtr[uint64](0xcccccccccccccccc),
-			lo.ToPtr[uint8](0xbb)
+		return new(uint8(0xff)),
+			new(uint16(0xeeee)),
+			new(uint32(0xdddddddd)),
+			new(uint64(0xcccccccccccccccc)),
+			new(uint8(0xbb))
 	})
 
 	b := make([]byte, 17)
@@ -149,12 +148,12 @@ func TestFuncIndex6(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex6(func(e *o) (*uint8, *uint16, *uint32, *uint64, *uint8, *uint16) {
-		return lo.ToPtr[uint8](0xff),
-			lo.ToPtr[uint16](0xeeee),
-			lo.ToPtr[uint32](0xdddddddd),
-			lo.ToPtr[uint64](0xcccccccccccccccc),
-			lo.ToPtr[uint8](0xbb),
-			lo.ToPtr[uint16](0xaaaa)
+		return new(uint8(0xff)),
+			new(uint16(0xeeee)),
+			new(uint32(0xdddddddd)),
+			new(uint64(0xcccccccccccccccc)),
+			new(uint8(0xbb)),
+			new(uint16(0xaaaa))
 	})
 
 	b := make([]byte, 19)
@@ -180,7 +179,7 @@ func TestFuncIndex1Strings(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex1(func(e *o) *string {
-		return lo.ToPtr("A")
+		return new("A")
 	})
 
 	b := make([]byte, 3)
@@ -200,8 +199,8 @@ func TestFuncIndex2Strings(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex2(func(e *o) (*string, *string) {
-		return lo.ToPtr("A"),
-			lo.ToPtr("BB")
+		return new("A"),
+			new("BB")
 	})
 
 	b := make([]byte, 6)
@@ -222,9 +221,9 @@ func TestFuncIndex3Strings(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex3(func(e *o) (*string, *string, *string) {
-		return lo.ToPtr("A"),
-			lo.ToPtr("BB"),
-			lo.ToPtr("CCC")
+		return new("A"),
+			new("BB"),
+			new("CCC")
 	})
 
 	b := make([]byte, 10)
@@ -246,10 +245,10 @@ func TestFuncIndex4Strings(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex4(func(e *o) (*string, *string, *string, *string) {
-		return lo.ToPtr("A"),
-			lo.ToPtr("BB"),
-			lo.ToPtr("CCC"),
-			lo.ToPtr("DDDD")
+		return new("A"),
+			new("BB"),
+			new("CCC"),
+			new("DDDD")
 	})
 
 	b := make([]byte, 15)
@@ -272,11 +271,11 @@ func TestFuncIndex5Strings(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex5(func(e *o) (*string, *string, *string, *string, *string) {
-		return lo.ToPtr("A"),
-			lo.ToPtr("BB"),
-			lo.ToPtr("CCC"),
-			lo.ToPtr("DDDD"),
-			lo.ToPtr("EEEEE")
+		return new("A"),
+			new("BB"),
+			new("CCC"),
+			new("DDDD"),
+			new("EEEEE")
 	})
 
 	b := make([]byte, 21)
@@ -301,12 +300,12 @@ func TestFuncIndex6Strings(t *testing.T) {
 	requireT := require.New(t)
 
 	i := NewFuncIndex6(func(e *o) (*string, *string, *string, *string, *string, *string) {
-		return lo.ToPtr("A"),
-			lo.ToPtr("BB"),
-			lo.ToPtr("CCC"),
-			lo.ToPtr("DDDD"),
-			lo.ToPtr("EEEEE"),
-			lo.ToPtr("FFFFFF")
+		return new("A"),
+			new("BB"),
+			new("CCC"),
+			new("DDDD"),
+			new("EEEEE"),
+			new("FFFFFF")
 	})
 
 	b := make([]byte, 28)
